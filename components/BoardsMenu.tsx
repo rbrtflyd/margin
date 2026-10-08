@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { useAuthActions } from '@convex-dev/auth/react';
 import type { Board, User } from '@/lib/types';
-import { signOut } from '@/app/auth/actions';
 
 interface Props {
   boards: Board[];
@@ -136,16 +136,29 @@ export default function BoardsMenu(props: Props) {
         </div>
       )}
 
-      {props.user && (
-        <form action={signOut} className="account">
-          <span className="account-name" title={props.user.email}>
-            {props.user.name || props.user.email}
-          </span>
-          <button type="submit" className="ghost-btn">
-            Sign out
-          </button>
-        </form>
-      )}
+      {props.user && <AccountFooter user={props.user} />}
+    </div>
+  );
+}
+
+function AccountFooter({ user }: { user: User }) {
+  const { signOut } = useAuthActions();
+  return (
+    <div className="account">
+      <span className="account-name" title={user.email}>
+        {user.name || user.email}
+      </span>
+      <button
+        type="button"
+        className="ghost-btn"
+        onClick={() => {
+          void signOut().then(() => {
+            window.location.assign('/auth/sign-in');
+          });
+        }}
+      >
+        Sign out
+      </button>
     </div>
   );
 }
