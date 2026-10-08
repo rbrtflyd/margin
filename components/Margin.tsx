@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AskTurn, Author, Board, Item, Store, View } from '@/lib/types';
+import type { AskTurn, Author, Board, Item, Store, User, View } from '@/lib/types';
 import { exportJSON, loadStore, newBoard, nowISO, parseImport, saveStore, uid } from '@/lib/store';
 import Canvas from './Canvas';
 import type { CanvasApi, Pt } from './Canvas';
@@ -16,7 +16,7 @@ function isEditable(t: EventTarget | null): boolean {
   return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
 }
 
-export default function Margin() {
+export default function Margin({ user }: { user: User | null }) {
   const [store, setStore] = useState<Store | null>(null);
   const storeRef = useRef<Store | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -31,16 +31,16 @@ export default function Margin() {
   const editSnapshot = useRef<{ id: string; items: Item[]; isNew: boolean } | null>(null);
 
   useEffect(() => {
-    const s = loadStore();
+    const s = loadStore(user?.id);
     storeRef.current = s;
     setStore(s);
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!store) return;
-    const t = setTimeout(() => saveStore(store), 250);
+    const t = setTimeout(() => saveStore(store, user?.id), 250);
     return () => clearTimeout(t);
-  }, [store]);
+  }, [store, user?.id]);
 
   // All writes go through here so consecutive updates in one event see each other.
   const update = useCallback((fn: (s: Store) => Store) => {
@@ -434,6 +434,7 @@ export default function Margin() {
         <BoardsMenu
           boards={store.boards}
           currentId={board.id}
+          user={user}
           startRenaming={renameOnOpen}
           onSwitch={(id) => {
             switchBoard(id);

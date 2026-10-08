@@ -1,6 +1,6 @@
 # Margin: notes for agents
 
-Next.js 15 (App Router) + React 19 + TypeScript. No UI libraries, no CSS framework: styles are in `app/globals.css`, driven by CSS custom properties with a dark-mode block.
+Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (managed Better Auth) via `@neondatabase/auth`. No UI libraries, no CSS framework: styles are in `app/globals.css`, driven by CSS custom properties with a dark-mode block.
 
 ## Product rules to keep intact
 
@@ -13,4 +13,5 @@ Next.js 15 (App Router) + React 19 + TypeScript. No UI libraries, no CSS framewo
 
 - All board writes in `components/Margin.tsx` go through `commitItems`, which records undo history when `record` is true.
 - Canvas coordinates are world units; `view` is `{ x, y, k }` (translate, then scale).
-- The API key never reaches the client. `/api/ask` requires `APP_PASSCODE` whenever it runs on Vercel.
+- `auth` from `lib/auth/server.ts` is `null` when the Neon Auth env vars are missing; every caller handles that case so the app still runs signed-out.
+- The API key never reaches the client. `/api/ask` requires a session when auth is on, and `APP_PASSCODE` on Vercel when it's off.

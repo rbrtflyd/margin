@@ -1,4 +1,5 @@
 import { SYSTEM_PROMPT, boardContext, validateAsk } from '@/lib/assistant';
+import { auth } from '@/lib/auth/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,21 +13,27 @@ type StreamEvent = {
   error?: { message?: string };
 };
 
-function fail(status: number, message: string): Response {
-  return new Response(JSON.stringify({ error: message }), {
+function fail(status: number, message: string, code?: 'signin' | 'passcode'): Response {
+  return new Response(JSON.stringify({ error: message, code }), {
     status,
     headers: { 'content-type': 'application/json' },
   });
 }
 
 export async function POST(req: Request): Promise<Response> {
-  // The deployed URL is public and this route spends your API credit, so it is gated by a passcode on Vercel.
-  const passcode = process.env.APP_PASSCODE;
-  if (process.env.VERCEL && !passcode) {
-    return fail(500, 'Set APP_PASSCODE in Vercel (Settings, Environment Variables), then redeploy.');
-  }
-  if (passcode && req.headers.get('x-margin-passcode') !== passcode) {
-    return fail(401, 'Enter the passcode to ask.');
+  // This route spends your API credit. With Neon Auth configured it needs a signed-in session;
+  // without it, a passcode gates it on Vercel.
+  if (auth) {
+    const { data: session } = await auth.getSession();
+    if (!session?.user) return fail(401, 'Your session ended. Sign in again to keep asking.', 'signin');
+  } else {
+    const passcode = process.env.APP_PASSCODE;
+    if (process.env.VERCEL && !passcode) {
+      return fail(500, 'Set APP_PASSCODE in Vercel (Settings, Environment Variables), then redeploy.');
+    }
+    if (passcode && req.headers.get('x-margin-passcode') !== passcode) {
+      return fail(401, 'Enter the passcode to ask.', 'passcode');
+    }
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

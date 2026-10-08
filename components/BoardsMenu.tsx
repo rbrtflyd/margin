@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import type { Board } from '@/lib/types';
+import type { Board, User } from '@/lib/types';
+import { signOut } from '@/app/auth/actions';
 
 interface Props {
   boards: Board[];
   currentId: string;
+  user: User | null;
   onSwitch(id: string): void;
   onCreate(): void;
   onRename(id: string, name: string): void;
@@ -132,6 +134,17 @@ export default function BoardsMenu(props: Props) {
           {error && <p className="err-text">{error}</p>}
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => void onFile(e)} />
         </div>
+      )}
+
+      {props.user && (
+        <form action={signOut} className="account">
+          <span className="account-name" title={props.user.email}>
+            {props.user.name || props.user.email}
+          </span>
+          <button type="submit" className="ghost-btn">
+            Sign out
+          </button>
+        </form>
       )}
     </div>
   );

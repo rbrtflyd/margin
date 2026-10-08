@@ -1,7 +1,27 @@
 import type { Board, Item, Store } from './types';
 
-// v1 keeps everything in the browser. Swap loadStore/saveStore for a database later.
+// v1 keeps everything in the browser, scoped per signed-in user.
+// Swap loadStore/saveStore for the database later.
 const KEY = 'margin:v1';
+
+function keyFor(userId?: string | null): string {
+  return userId ? `${KEY}:u:${userId}` : KEY;
+}
+
+function readStore(key: string): Store | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as Store;
+    if (s && s.v === 1 && Array.isArray(s.boards) && s.boards.length > 0) {
+      if (!s.boards.some((b) => b.id === s.currentId)) s.currentId = s.boards[0].id;
+      return s;
+    }
+  } catch {
+    // Unreadable storage: treat as empty.
+  }
+  return null;
+}
 
 export function uid(prefix = ''): string {
   return prefix + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -16,26 +36,29 @@ export function newBoard(name = 'Untitled board'): Board {
   return { id: uid('b_'), name, items: [], view: null, asks: [], createdAt: t, updatedAt: t };
 }
 
-export function loadStore(): Store {
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (raw) {
-      const s = JSON.parse(raw) as Store;
-      if (s && s.v === 1 && Array.isArray(s.boards) && s.boards.length > 0) {
-        if (!s.boards.some((b) => b.id === s.currentId)) s.currentId = s.boards[0].id;
-        return s;
+export function loadStore(userId?: string | null): Store {
+  const own = readStore(keyFor(userId));
+  if (own) return own;
+  if (userId) {
+    // First sign-in on this browser: adopt boards made before accounts existed.
+    const anon = readStore(KEY);
+    if (anon) {
+      try {
+        window.localStorage.setItem(keyFor(userId), JSON.stringify(anon));
+        window.localStorage.removeItem(KEY);
+      } catch {
+        // ignore
       }
+      return anon;
     }
-  } catch {
-    // Unreadable storage: start fresh rather than crash.
   }
   const b = newBoard();
   return { v: 1, boards: [b], currentId: b.id };
 }
 
-export function saveStore(s: Store): void {
+export function saveStore(s: Store, userId?: string | null): void {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(s));
+    window.localStorage.setItem(keyFor(userId), JSON.stringify(s));
   } catch {
     // Storage full or blocked. Nothing else to do in v1.
   }

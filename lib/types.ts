@@ -1,5 +1,12 @@
 export type Author = 'me' | 'claude';
 
+/** The signed-in person, or null when auth isn't configured. */
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 /** The one primitive: a free text box. It can hold an idea, a question, a quote, a link, anything. */
 export interface Item {
   id: string;

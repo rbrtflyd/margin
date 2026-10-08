@@ -30,6 +30,7 @@ export default function AskPanel(props: Props) {
   const [live, setLive] = useState<{ id: string; a: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [needPass, setNeedPass] = useState(false);
+  const [needSignIn, setNeedSignIn] = useState(false);
   const [pass, setPass] = useState('');
   const [pendingQ, setPendingQ] = useState<string | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -85,12 +86,26 @@ export default function AskPanel(props: Props) {
         signal: controller.signal,
       });
       if (res.status === 401) {
-        setNeedPass(true);
-        setPendingQ(question);
-        props.onTurns(turnsRef.current.filter((t) => t.id !== turn.id));
-        return;
-      }
-      if (!res.ok || !res.body) {
+        let code = 'passcode';
+        let msg = '';
+        try {
+          const j = (await res.json()) as { error?: string; code?: string };
+          if (j.code) code = j.code;
+          if (j.error) msg = j.error;
+        } catch {
+          // no body
+        }
+        if (code === 'signin') {
+          setNeedSignIn(true);
+          answer = msg || 'Sign in again to keep asking.';
+          status = 'error';
+        } else {
+          setNeedPass(true);
+          setPendingQ(question);
+          props.onTurns(turnsRef.current.filter((t) => t.id !== turn.id));
+          return;
+        }
+      } else if (!res.ok || !res.body) {
         let msg = 'Something went wrong asking Claude.';
         try {
           const j = (await res.json()) as { error?: string };
@@ -252,7 +267,16 @@ export default function AskPanel(props: Props) {
         })}
       </div>
 
-      {needPass ? (
+      {needSignIn ? (
+        <div className="ask-foot">
+          <div className="row">
+            <span className="pass-label">Your session ended.</span>
+            <a className="primary-btn" href="/auth/sign-in">
+              Sign in
+            </a>
+          </div>
+        </div>
+      ) : needPass ? (
         <form className="ask-foot" onSubmit={savePass}>
           <label className="pass-label" htmlFor="ask-pass">
             This deployment needs its passcode. It&rsquo;s saved in this browser.
