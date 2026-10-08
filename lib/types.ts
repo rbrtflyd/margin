@@ -1,6 +1,6 @@
 export type Author = 'me' | 'claude';
 
-/** The signed-in person, or null when auth isn't configured. */
+/** The signed-in person, or null when Convex Auth isn't configured. */
 export interface User {
   id: string;
   name: string;

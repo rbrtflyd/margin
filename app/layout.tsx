@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
+import ConvexClientProvider from '@/components/ConvexClientProvider';
+import { isConvexConfigured } from '@/lib/env';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -14,6 +17,14 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const body = isConvexConfigured() ? (
+    <ConvexAuthNextjsServerProvider>
+      <ConvexClientProvider>{children}</ConvexClientProvider>
+    </ConvexAuthNextjsServerProvider>
+  ) : (
+    children
+  );
+
   return (
     <html lang="en">
       <head>
@@ -24,7 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap"
         />
       </head>
-      <body>{children}</body>
+      <body>{body}</body>
     </html>
   );
 }

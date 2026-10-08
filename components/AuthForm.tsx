@@ -1,14 +1,15 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { signInWithEmail, signUpWithEmail } from '@/app/auth/actions';
-import type { AuthState } from '@/app/auth/actions';
-import { authClient } from '@/lib/auth/client';
+import { useAuthActions } from '@convex-dev/auth/react';
 
 export default function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
   const isSignUp = mode === 'sign-up';
-  const [state, formAction, pending] = useActionState<AuthState, FormData>(isSignUp ? signUpWithEmail : signInWithEmail, null);
+  const { signIn } = useAuthActions();
+  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [pending, setPending] = useState(false);
   const [socialError, setSocialError] = useState<string | null>(null);
   const [socialPending, setSocialPending] = useState(false);
 
@@ -16,15 +17,32 @@ export default function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
     setSocialError(null);
     setSocialPending(true);
     try {
-      // Redirects to Google, then back to "/" with a session.
-      const res = await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
-      if (res && res.error) {
-        setSocialError(res.error.message || 'Google sign-in isn’t available. Check the providers in Neon Auth.');
-        setSocialPending(false);
-      }
+      await signIn('google');
     } catch {
-      setSocialError('Couldn’t start Google sign-in. Try again.');
+      setSocialError('Couldn’t start Google sign-in. Add AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET on the Convex deployment.');
       setSocialPending(false);
+    }
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setPending(true);
+    const formData = new FormData(e.currentTarget);
+    formData.set('flow', isSignUp ? 'signUp' : 'signIn');
+    try {
+      await signIn('password', formData);
+      window.location.assign('/');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (/invalidaccountid|invalidsecret|invalid password/i.test(message)) {
+        setError('Couldn’t sign in. Check your email and password.');
+      } else if (/already exists|already used/i.test(message)) {
+        setError('An account with that email already exists. Sign in instead.');
+      } else {
+        setError(isSignUp ? 'Couldn’t create the account.' : 'Couldn’t sign in. Check your email and password.');
+      }
+      setPending(false);
     }
   }
 
@@ -43,7 +61,7 @@ export default function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
           <span>or with email</span>
         </div>
 
-        <form action={formAction} className="auth-fields">
+        <form onSubmit={(e) => void onSubmit(e)} className="auth-fields">
           {isSignUp && (
             <label>
               <span>Name</span>
@@ -52,7 +70,15 @@ export default function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
           )}
           <label>
             <span>Email</span>
-            <input id="auth-email" name="email" type="email" autoComplete="email" defaultValue={state?.email ?? ''} required />
+            <input
+              id="auth-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </label>
           <label>
             <span>Password</span>
@@ -65,7 +91,7 @@ export default function AuthForm({ mode }: { mode: 'sign-in' | 'sign-up' }) {
               required
             />
           </label>
-          {state && state.error && <p className="err-text">{state.error}</p>}
+          {error && <p className="err-text">{error}</p>}
           <button type="submit" className="primary-btn auth-submit" disabled={pending || socialPending}>
             {pending ? (isSignUp ? 'Creating account…' : 'Signing in…') : isSignUp ? 'Create account' : 'Sign in'}
           </button>

@@ -16,7 +16,13 @@ function isEditable(t: EventTarget | null): boolean {
   return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
 }
 
-export default function Margin({ user }: { user: User | null }) {
+type Sync = {
+  /** undefined while the Convex query is loading; null if this user has no store yet. */
+  remote: Store | null | undefined;
+  save(s: Store): void;
+};
+
+export default function Margin({ user, sync }: { user: User | null; sync?: Sync }) {
   const [store, setStore] = useState<Store | null>(null);
   const storeRef = useRef<Store | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -29,18 +35,31 @@ export default function Margin({ user }: { user: User | null }) {
   const canvasApi = useRef<CanvasApi | null>(null);
   const histories = useRef(new Map<string, History>());
   const editSnapshot = useRef<{ id: string; items: Item[]; isNew: boolean } | null>(null);
+  const hydrated = useRef(false);
 
   useEffect(() => {
-    const s = loadStore(user?.id);
-    storeRef.current = s;
-    setStore(s);
+    hydrated.current = false;
+    storeRef.current = null;
+    setStore(null);
   }, [user?.id]);
 
   useEffect(() => {
+    if (hydrated.current) return;
+    if (sync && sync.remote === undefined) return;
+    const s = sync ? (sync.remote ?? loadStore(user?.id)) : loadStore(user?.id);
+    storeRef.current = s;
+    setStore(s);
+    hydrated.current = true;
+  }, [user?.id, sync]);
+
+  useEffect(() => {
     if (!store) return;
-    const t = setTimeout(() => saveStore(store, user?.id), 250);
+    const t = setTimeout(() => {
+      if (sync) sync.save(store);
+      else saveStore(store, user?.id);
+    }, 250);
     return () => clearTimeout(t);
-  }, [store, user?.id]);
+  }, [store, user?.id, sync]);
 
   // All writes go through here so consecutive updates in one event see each other.
   const update = useCallback((fn: (s: Store) => Store) => {

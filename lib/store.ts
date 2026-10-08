@@ -1,7 +1,7 @@
 import type { Board, Item, Store } from './types';
 
-// v1 keeps everything in the browser, scoped per signed-in user.
-// Swap loadStore/saveStore for the database later.
+// Browser persistence, scoped per signed-in user. Used when Convex is off,
+// and to seed Convex the first time a signed-in user has no cloud store.
 const KEY = 'margin:v1';
 
 function keyFor(userId?: string | null): string {

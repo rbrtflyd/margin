@@ -1,14 +1,33 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/server';
+import {
+  convexAuthNextjsMiddleware,
+  createRouteMatcher,
+  nextjsMiddlewareRedirect,
+} from '@convex-dev/auth/nextjs/server';
+import { isConvexConfigured } from '@/lib/env';
 
-// Next.js 16 proxy (formerly middleware). Sends signed-out visitors to the sign-in page.
-// API routes and the auth pages are excluded: /api/ask checks the session itself and answers with JSON.
+const isAuthPage = createRouteMatcher(['/auth/sign-in', '/auth/sign-up']);
+const isPublic = createRouteMatcher(['/auth/sign-in', '/auth/sign-up', '/api/ask']);
+
 function passThrough() {
   return NextResponse.next();
 }
 
-export default auth ? auth.middleware({ loginUrl: '/auth/sign-in' }) : passThrough;
+export default isConvexConfigured()
+  ? convexAuthNextjsMiddleware(
+      async (request, { convexAuth }) => {
+        if (isAuthPage(request) && (await convexAuth.isAuthenticated())) {
+          return nextjsMiddlewareRedirect(request, '/');
+        }
+        if (isPublic(request)) return;
+        if (!(await convexAuth.isAuthenticated())) {
+          return nextjsMiddlewareRedirect(request, '/auth/sign-in');
+        }
+      },
+      { cookieConfig: { maxAge: 60 * 60 * 24 * 30 } },
+    )
+  : passThrough;
 
 export const config = {
-  matcher: ['/((?!api|auth|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!.*\\..*|_next).*)', '/', '/(api|trpc)(.*)'],
 };

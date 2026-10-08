@@ -1,6 +1,6 @@
 # Margin: notes for agents
 
-Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (managed Better Auth) via `@neondatabase/auth`. No UI libraries, no CSS framework: styles are in `app/globals.css`, driven by CSS custom properties with a dark-mode block.
+Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth and board storage are Convex (`convex/` + Convex Auth) when `NEXT_PUBLIC_CONVEX_URL` is set. No UI libraries, no CSS framework: styles are in `app/globals.css`, driven by CSS custom properties with a dark-mode block.
 
 ## Product rules to keep intact
 
@@ -13,5 +13,6 @@ Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (
 
 - All board writes in `components/Margin.tsx` go through `commitItems`, which records undo history when `record` is true.
 - Canvas coordinates are world units; `view` is `{ x, y, k }` (translate, then scale).
-- `auth` from `lib/auth/server.ts` is `null` when the Neon Auth env vars are missing; every caller handles that case so the app still runs signed-out.
-- The API key never reaches the client. `/api/ask` requires a session when auth is on, and `APP_PASSCODE` on Vercel when it's off.
+- `isConvexConfigured()` from `lib/env.ts` is false when `NEXT_PUBLIC_CONVEX_URL` is missing; every caller handles that case so the app still runs signed-out with `localStorage`.
+- The API key never reaches the client. `/api/ask` requires a Convex Auth session when Convex is on, and `APP_PASSCODE` on Vercel when it's off.
+- Convex env vars for Auth (`SITE_URL`, `JWT_PRIVATE_KEY`, `JWKS`, optional `AUTH_GOOGLE_*`) live on the Convex deployment, not in Next.js. Generate keys with `npm run auth:keys`.
