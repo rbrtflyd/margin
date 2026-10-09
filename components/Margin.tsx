@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import type { AskTurn, Author, Board, Item, Store, User, View } from '@/lib/types';
-import { exportJSON, loadStore, newBoard, nowISO, parseImport, saveStore, uid } from '@/lib/store';
+import { clearLocalStore, exportJSON, nowISO, parseImport, readLocalStore, uid } from '@/lib/store';
 import Canvas from './Canvas';
 import type { CanvasApi, Pt } from './Canvas';
 import AskPanel from './AskPanel';
@@ -19,6 +22,7 @@ function isEditable(t: EventTarget | null): boolean {
 export default function Margin({ user }: { user: User | null }) {
   const [store, setStore] = useState<Store | null>(null);
   const storeRef = useRef<Store | null>(null);
+  const hydrated = useRef(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
@@ -30,17 +34,56 @@ export default function Margin({ user }: { user: User | null }) {
   const histories = useRef(new Map<string, History>());
   const editSnapshot = useRef<{ id: string; items: Item[]; isNew: boolean } | null>(null);
 
-  useEffect(() => {
-    const s = loadStore(user?.id);
-    storeRef.current = s;
-    setStore(s);
-  }, [user?.id]);
+  const remote = useQuery(api.boards.queries.getStore);
+  const seed = useMutation(api.boards.mutations.seed);
+  const migrate = useMutation(api.boards.mutations.migrate);
+  const save = useMutation(api.boards.mutations.save);
+  const createRemote = useMutation(api.boards.mutations.create);
+  const removeRemote = useMutation(api.boards.mutations.remove);
 
   useEffect(() => {
-    if (!store) return;
-    const t = setTimeout(() => saveStore(store, user?.id), 250);
+    if (remote === undefined || hydrated.current) return;
+    let cancelled = false;
+    void (async () => {
+      let next = remote;
+      if (!next) {
+        const local = readLocalStore(user?.id);
+        next = local
+          ? await migrate({
+              boards: local.boards,
+              currentId: local.currentId,
+            })
+          : await seed();
+        if (local) clearLocalStore(user?.id);
+      }
+      if (cancelled || !next) return;
+      storeRef.current = next;
+      setStore(next);
+      hydrated.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [remote, user?.id, migrate, seed]);
+
+  useEffect(() => {
+    if (!store || !hydrated.current) return;
+    const t = setTimeout(() => {
+      void save({
+        boards: store.boards.map((b) => ({
+          id: b.id as Id<'boards'>,
+          name: b.name,
+          items: b.items,
+          view: b.view,
+          asks: b.asks,
+          createdAt: b.createdAt,
+          updatedAt: b.updatedAt,
+        })),
+        currentId: store.currentId as Id<'boards'>,
+      });
+    }, 250);
     return () => clearTimeout(t);
-  }, [store, user?.id]);
+  }, [store, save]);
 
   // All writes go through here so consecutive updates in one event see each other.
   const update = useCallback((fn: (s: Store) => Store) => {
@@ -222,11 +265,12 @@ export default function Margin({ user }: { user: User | null }) {
   };
 
   const createBoard = () => {
-    const b = newBoard();
-    setSelected(new Set());
-    setEditingId(null);
-    update((s) => ({ ...s, boards: [...s.boards, b], currentId: b.id }));
-    setRenameOnOpen(true);
+    void createRemote({}).then((b) => {
+      setSelected(new Set());
+      setEditingId(null);
+      update((s) => ({ ...s, boards: [...s.boards, b], currentId: b.id }));
+      setRenameOnOpen(true);
+    });
   };
 
   const deleteBoard = (id: string) => {
@@ -237,6 +281,7 @@ export default function Margin({ user }: { user: User | null }) {
       return { ...s, boards, currentId: s.currentId === id ? boards[0].id : s.currentId };
     });
     setSelected(new Set());
+    void removeRemote({ id: id as Id<'boards'> });
   };
 
   const exportBoard = (id: string) => {
@@ -257,8 +302,15 @@ export default function Margin({ user }: { user: User | null }) {
   const importBoard = (text: string): string | null => {
     const result = parseImport(text);
     if (typeof result === 'string') return result;
-    update((s) => ({ ...s, boards: [...s.boards, result], currentId: result.id }));
-    setSelected(new Set());
+    void createRemote({
+      name: result.name,
+      items: result.items,
+      view: result.view,
+      asks: result.asks,
+    }).then((b) => {
+      update((s) => ({ ...s, boards: [...s.boards, b], currentId: b.id }));
+      setSelected(new Set());
+    });
     return null;
   };
 

@@ -1,7 +1,5 @@
 import type { Board, Item, Store } from './types';
 
-// v1 keeps everything in the browser, scoped per signed-in user.
-// Swap loadStore/saveStore for the database later.
 const KEY = 'margin:v1';
 
 function keyFor(userId?: string | null): string {
@@ -36,31 +34,20 @@ export function newBoard(name = 'Untitled board'): Board {
   return { id: uid('b_'), name, items: [], view: null, asks: [], createdAt: t, updatedAt: t };
 }
 
-export function loadStore(userId?: string | null): Store {
+/** Browser leftover from before Convex. Used once to migrate, then cleared. */
+export function readLocalStore(userId?: string | null): Store | null {
   const own = readStore(keyFor(userId));
   if (own) return own;
-  if (userId) {
-    // First sign-in on this browser: adopt boards made before accounts existed.
-    const anon = readStore(KEY);
-    if (anon) {
-      try {
-        window.localStorage.setItem(keyFor(userId), JSON.stringify(anon));
-        window.localStorage.removeItem(KEY);
-      } catch {
-        // ignore
-      }
-      return anon;
-    }
-  }
-  const b = newBoard();
-  return { v: 1, boards: [b], currentId: b.id };
+  if (userId) return readStore(KEY);
+  return null;
 }
 
-export function saveStore(s: Store, userId?: string | null): void {
+export function clearLocalStore(userId?: string | null): void {
   try {
-    window.localStorage.setItem(keyFor(userId), JSON.stringify(s));
+    window.localStorage.removeItem(keyFor(userId));
+    if (userId) window.localStorage.removeItem(KEY);
   } catch {
-    // Storage full or blocked. Nothing else to do in v1.
+    // ignore
   }
 }
 
