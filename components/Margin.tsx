@@ -521,11 +521,11 @@ export default function Margin({ user }: { user: User | null }) {
       )}
 
       <nav
-        className="fixed bottom-[calc(16px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-0.5 rounded-xl border border-stone-100 bg-white/80 p-1 shadow-xl backdrop-blur-md"
+        className="fixed bottom-[calc(16px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-0.5 rounded-4xl border border-stone-100 bg-white/80 p-1 shadow-xl backdrop-blur-md"
         aria-label="Toolbar">
         <button
           type="button"
-          className="inline-flex max-w-[220px] min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap hover:bg-zinc-900/10 aria-expanded:bg-zinc-900 aria-expanded:text-stone-100 max-sm:px-2"
+          className="inline-flex max-w-55 min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap hover:bg-zinc-900/10 aria-expanded:bg-zinc-900 aria-expanded:text-stone-100 max-sm:px-2"
           data-boards-toggle
           aria-expanded={boardsOpen}
           onClick={() => {

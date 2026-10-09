@@ -383,15 +383,22 @@ export default function Canvas(props: Props) {
   const shown = preview ?? props.selected;
   const flash = new Set(props.flash);
   const grid = Math.max(8, 24 * view.k);
+  // Dots stay screen-sized, so they crowd the board once zoomed out. Gone by 80%.
+  const gridOpacity = Math.min(1, Math.max(0, (view.k - 0.8) / 0.1));
 
   return (
     <div
       ref={rootRef}
       className={
-        'absolute inset-0 touch-none overflow-hidden select-none bg-[radial-gradient(circle,#d6d3d1_1px,transparent_1.2px)]' +
+        'absolute inset-0 touch-none overflow-hidden select-none' +
         (panning ? ' cursor-grabbing' : spaceDown ? ' cursor-grab' : '')
       }
-      style={{ backgroundSize: `${grid}px ${grid}px`, backgroundPosition: `${view.x}px ${view.y}px` }}
+      style={{
+        backgroundImage:
+          gridOpacity > 0 ? `radial-gradient(circle, rgb(214 211 209 / ${gridOpacity}) 1px, transparent 1.2px)` : undefined,
+        backgroundSize: `${grid}px ${grid}px`,
+        backgroundPosition: `${view.x}px ${view.y}px`,
+      }}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
       onContextMenu={(e) => {
