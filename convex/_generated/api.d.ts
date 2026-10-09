@@ -8,9 +8,11 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
 import type * as boards__lib from "../boards/_lib.js";
 import type * as boards_mutations from "../boards/mutations.js";
 import type * as boards_queries from "../boards/queries.js";
+import type * as http from "../http.js";
 import type * as schemas_boards from "../schemas/boards.js";
 import type * as schemas_workspace from "../schemas/workspace.js";
 
@@ -21,9 +23,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   "boards/_lib": typeof boards__lib;
   "boards/mutations": typeof boards_mutations;
   "boards/queries": typeof boards_queries;
+  http: typeof http;
   "schemas/boards": typeof schemas_boards;
   "schemas/workspace": typeof schemas_workspace;
 }>;
@@ -54,4 +58,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+};

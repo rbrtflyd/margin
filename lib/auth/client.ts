@@ -1,6 +1,8 @@
 'use client';
 
-import { createAuthClient } from '@neondatabase/auth/next';
+import { createAuthClient } from 'better-auth/react';
+import { convexClient } from '@convex-dev/better-auth/client/plugins';
 
-// Talks to /api/auth/* on this app, which proxies to Neon Auth.
-export const authClient = createAuthClient();
+export const authClient = createAuthClient({
+  plugins: [convexClient()],
+});

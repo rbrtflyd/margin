@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/server';
+import type { NextRequest } from 'next/server';
+import { getSessionCookie } from 'better-auth/cookies';
 
-// Next.js 16 proxy (formerly middleware). Sends signed-out visitors to the sign-in page.
-// API routes and the auth pages are excluded: /api/ask checks the session itself and answers with JSON.
-function passThrough() {
-  return NextResponse.next();
+// Optimistic gate only. Pages still check the session.
+export default function proxy(request: NextRequest) {
+  if (getSessionCookie(request)) return NextResponse.next();
+  return NextResponse.redirect(new URL('/auth/sign-in', request.url));
 }
-
-export default auth ? auth.middleware({ loginUrl: '/auth/sign-in' }) : passThrough;
 
 export const config = {
   matcher: ['/((?!api|auth|_next/static|_next/image|favicon.ico).*)'],

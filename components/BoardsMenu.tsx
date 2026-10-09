@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import type { Board, User } from '@/lib/types';
-import { signOut } from '@/app/auth/actions';
+import { authClient } from '@/lib/auth/client';
 
 interface Props {
   boards: Board[];
@@ -153,14 +153,22 @@ export default function BoardsMenu(props: Props) {
       )}
 
       {props.user && (
-        <form action={signOut} className="flex items-center justify-between gap-2 border-t border-stone-300 pt-2.5">
+        <div className="flex items-center justify-between gap-2 border-t border-stone-300 pt-2.5">
           <span className="min-w-0 truncate text-[13px] text-zinc-500" title={props.user.email}>
             {props.user.name || props.user.email}
           </span>
-          <button type="submit" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40">
+          <button
+            type="button"
+            className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40"
+            onClick={() => {
+              void authClient.signOut().then(() => {
+                window.location.href = '/auth/sign-in';
+              });
+            }}
+          >
             Sign out
           </button>
-        </form>
+        </div>
       )}
     </div>
   );

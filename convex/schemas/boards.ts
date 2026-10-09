@@ -36,4 +36,7 @@ export const boardFieldsValidator = v.object({
   updatedAt: v.string(),
 });
 
-export const boards = defineTable(boardFieldsValidator);
+export const boards = defineTable({
+  userId: v.string(),
+  ...boardFieldsValidator.fields,
+}).index('by_user', ['userId']);

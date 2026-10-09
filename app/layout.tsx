@@ -4,6 +4,7 @@ import './globals.css';
 import { Inter } from 'next/font/google';
 import { cn } from '@/lib/utils';
 import { ConvexClientProvider } from '@/providers/ConvexClientProvider';
+import { getToken } from '@/lib/auth/server';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -19,7 +20,8 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const token = await getToken();
   return (
     <html
       lang="en"
@@ -40,7 +42,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="bg-stone-100 font-sans text-sm leading-snug text-zinc-900 antialiased">
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+        <ConvexClientProvider initialToken={token}>{children}</ConvexClientProvider>
       </body>
     </html>
   );

@@ -1,25 +1,4 @@
-import type { Board, Item, Store } from './types';
-
-const KEY = 'margin:v1';
-
-function keyFor(userId?: string | null): string {
-  return userId ? `${KEY}:u:${userId}` : KEY;
-}
-
-function readStore(key: string): Store | null {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as Store;
-    if (s && s.v === 1 && Array.isArray(s.boards) && s.boards.length > 0) {
-      if (!s.boards.some((b) => b.id === s.currentId)) s.currentId = s.boards[0].id;
-      return s;
-    }
-  } catch {
-    // Unreadable storage: treat as empty.
-  }
-  return null;
-}
+import type { Board, Item } from './types';
 
 export function uid(prefix = ''): string {
   return prefix + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -32,23 +11,6 @@ export function nowISO(): string {
 export function newBoard(name = 'Untitled board'): Board {
   const t = nowISO();
   return { id: uid('b_'), name, items: [], view: null, asks: [], createdAt: t, updatedAt: t };
-}
-
-/** Browser leftover from before Convex. Used once to migrate, then cleared. */
-export function readLocalStore(userId?: string | null): Store | null {
-  const own = readStore(keyFor(userId));
-  if (own) return own;
-  if (userId) return readStore(KEY);
-  return null;
-}
-
-export function clearLocalStore(userId?: string | null): void {
-  try {
-    window.localStorage.removeItem(keyFor(userId));
-    if (userId) window.localStorage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
 }
 
 function isItem(x: unknown): x is Item {

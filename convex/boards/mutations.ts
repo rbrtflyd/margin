@@ -1,29 +1,18 @@
 import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
 import { askValidator, boardFieldsValidator, itemValidator, viewValidator } from '../schemas/boards';
-import { readStore, toBoard } from './_lib';
-
-const migratedBoardValidator = v.object({
-  id: v.string(),
-  ...boardFieldsValidator.fields,
-});
-
-async function setCurrent(ctx: MutationCtx, id: Id<'boards'>) {
-  const ws = await ctx.db.query('workspace').first();
-  if (ws) await ctx.db.patch(ws._id, { currentBoardId: id });
-  else await ctx.db.insert('workspace', { currentBoardId: id });
-}
+import { readStore, requireUserId, setCurrent, toBoard } from './_lib';
 
 export const seed = mutation({
   args: {},
   handler: async (ctx) => {
-    const existing = await ctx.db.query('boards').first();
-    if (existing) return await readStore(ctx);
+    const userId = await requireUserId(ctx);
+    const existing = await readStore(ctx, userId);
+    if (existing) return existing;
 
     const t = new Date().toISOString();
     const id = await ctx.db.insert('boards', {
+      userId,
       name: 'Untitled board',
       items: [],
       view: null,
@@ -31,36 +20,8 @@ export const seed = mutation({
       createdAt: t,
       updatedAt: t,
     });
-    await setCurrent(ctx, id);
-    return await readStore(ctx);
-  },
-});
-
-export const migrate = mutation({
-  args: {
-    boards: v.array(migratedBoardValidator),
-    currentId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    if ((await ctx.db.query('boards').first()) || args.boards.length === 0) {
-      return await readStore(ctx);
-    }
-
-    const ids = new Map<string, Id<'boards'>>();
-    for (const b of args.boards) {
-      const id = await ctx.db.insert('boards', {
-        name: b.name,
-        items: b.items,
-        view: b.view,
-        asks: b.asks,
-        createdAt: b.createdAt,
-        updatedAt: b.updatedAt,
-      });
-      ids.set(b.id, id);
-    }
-    const currentId = ids.get(args.currentId) ?? [...ids.values()][0];
-    await setCurrent(ctx, currentId);
-    return await readStore(ctx);
+    await setCurrent(ctx, userId, id);
+    return await readStore(ctx, userId);
   },
 });
 
@@ -72,8 +33,10 @@ export const create = mutation({
     asks: v.optional(v.array(askValidator)),
   },
   handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
     const t = new Date().toISOString();
     const id = await ctx.db.insert('boards', {
+      userId,
       name: args.name?.trim() || 'Untitled board',
       items: args.items ?? [],
       view: args.view ?? null,
@@ -81,7 +44,7 @@ export const create = mutation({
       createdAt: t,
       updatedAt: t,
     });
-    await setCurrent(ctx, id);
+    await setCurrent(ctx, userId, id);
     const doc = await ctx.db.get(id);
     if (!doc) throw new Error('Board insert failed.');
     return toBoard(doc);
@@ -99,25 +62,31 @@ export const save = mutation({
     currentId: v.id('boards'),
   },
   handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
     for (const b of args.boards) {
       const doc = await ctx.db.get(b.id);
-      if (!doc) continue;
+      if (!doc || doc.userId !== userId) continue;
       const { id: _id, ...fields } = b;
       await ctx.db.patch(b.id, fields);
     }
-    if (await ctx.db.get(args.currentId)) await setCurrent(ctx, args.currentId);
+    const current = await ctx.db.get(args.currentId);
+    if (current && current.userId === userId) await setCurrent(ctx, userId, args.currentId);
   },
 });
 
 export const remove = mutation({
   args: { id: v.id('boards') },
   handler: async (ctx, args) => {
-    const docs = await ctx.db.query('boards').collect();
+    const userId = await requireUserId(ctx);
+    const docs = await ctx.db
+      .query('boards')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect();
     if (docs.length < 2) return;
     const doc = await ctx.db.get(args.id);
-    if (!doc) return;
+    if (!doc || doc.userId !== userId) return;
     await ctx.db.delete(args.id);
     const next = docs.find((d) => d._id !== args.id);
-    if (next) await setCurrent(ctx, next._id);
+    if (next) await setCurrent(ctx, userId, next._id);
   },
 });

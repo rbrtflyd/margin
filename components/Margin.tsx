@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { AskTurn, Author, Board, Item, Store, User, View } from '@/lib/types';
-import { clearLocalStore, exportJSON, nowISO, parseImport, readLocalStore, uid } from '@/lib/store';
+import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import Canvas from './Canvas';
 import type { CanvasApi, Pt } from './Canvas';
 import AskPanel from './AskPanel';
@@ -34,28 +34,18 @@ export default function Margin({ user }: { user: User | null }) {
   const histories = useRef(new Map<string, History>());
   const editSnapshot = useRef<{ id: string; items: Item[]; isNew: boolean } | null>(null);
 
-  const remote = useQuery(api.boards.queries.getStore);
+  const { isAuthenticated } = useConvexAuth();
+  const remote = useQuery(api.boards.queries.getStore, isAuthenticated ? {} : 'skip');
   const seed = useMutation(api.boards.mutations.seed);
-  const migrate = useMutation(api.boards.mutations.migrate);
   const save = useMutation(api.boards.mutations.save);
   const createRemote = useMutation(api.boards.mutations.create);
   const removeRemote = useMutation(api.boards.mutations.remove);
 
   useEffect(() => {
-    if (remote === undefined || hydrated.current) return;
+    if (!isAuthenticated || remote === undefined || hydrated.current) return;
     let cancelled = false;
     void (async () => {
-      let next = remote;
-      if (!next) {
-        const local = readLocalStore(user?.id);
-        next = local
-          ? await migrate({
-              boards: local.boards,
-              currentId: local.currentId,
-            })
-          : await seed();
-        if (local) clearLocalStore(user?.id);
-      }
+      const next = remote ?? (await seed());
       if (cancelled || !next) return;
       storeRef.current = next;
       setStore(next);
@@ -64,7 +54,7 @@ export default function Margin({ user }: { user: User | null }) {
     return () => {
       cancelled = true;
     };
-  }, [remote, user?.id, migrate, seed]);
+  }, [isAuthenticated, remote, seed]);
 
   useEffect(() => {
     if (!store || !hydrated.current) return;
