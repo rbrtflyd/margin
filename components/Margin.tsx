@@ -4,7 +4,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import type { AskTurn, Author, Board, Item, Store, User, View } from '@/lib/types';
+import type {
+  AskTurn,
+  Author,
+  Board,
+  Item,
+  Store,
+  User,
+  View,
+} from '@/lib/types';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import Canvas from './Canvas';
 import type { CanvasApi, Pt } from './Canvas';
@@ -16,7 +24,12 @@ const MAX_HISTORY = 100;
 
 function isEditable(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
-  return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
+  return (
+    t.isContentEditable ||
+    t.tagName === 'INPUT' ||
+    t.tagName === 'TEXTAREA' ||
+    t.tagName === 'SELECT'
+  );
 }
 
 export default function Margin({ user }: { user: User | null }) {
@@ -32,10 +45,17 @@ export default function Margin({ user }: { user: User | null }) {
   const [zoom, setZoom] = useState(1);
   const canvasApi = useRef<CanvasApi | null>(null);
   const histories = useRef(new Map<string, History>());
-  const editSnapshot = useRef<{ id: string; items: Item[]; isNew: boolean } | null>(null);
+  const editSnapshot = useRef<{
+    id: string;
+    items: Item[];
+    isNew: boolean;
+  } | null>(null);
 
   const { isAuthenticated } = useConvexAuth();
-  const remote = useQuery(api.boards.queries.getStore, isAuthenticated ? {} : 'skip');
+  const remote = useQuery(
+    api.boards.queries.getStore,
+    isAuthenticated ? {} : 'skip',
+  );
   const seed = useMutation(api.boards.mutations.seed);
   const save = useMutation(api.boards.mutations.save);
   const createRemote = useMutation(api.boards.mutations.create);
@@ -86,7 +106,7 @@ export default function Margin({ user }: { user: User | null }) {
 
   const currentBoard = (): Board | null => {
     const s = storeRef.current;
-    return s ? s.boards.find((b) => b.id === s.currentId) ?? null : null;
+    return s ? (s.boards.find((b) => b.id === s.currentId) ?? null) : null;
   };
 
   const hist = (id: string): History => {
@@ -114,12 +134,17 @@ export default function Margin({ user }: { user: User | null }) {
     if (record) pushHistory(b.id, b.items);
     update((s) => ({
       ...s,
-      boards: s.boards.map((x) => (x.id === b.id ? { ...x, items: next, updatedAt: nowISO() } : x)),
+      boards: s.boards.map((x) =>
+        x.id === b.id ? { ...x, items: next, updatedAt: nowISO() } : x,
+      ),
     }));
   };
 
   const patchBoard = (id: string, patch: Partial<Board>) => {
-    update((s) => ({ ...s, boards: s.boards.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+    update((s) => ({
+      ...s,
+      boards: s.boards.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+    }));
   };
 
   const doFlash = (ids: string[]) => {
@@ -133,7 +158,15 @@ export default function Margin({ user }: { user: User | null }) {
     const b = currentBoard();
     if (!b) return '';
     const t = nowISO();
-    const item: Item = { id: uid('t_'), x: Math.round(p.x), y: Math.round(p.y), text, by, createdAt: t, editedAt: t };
+    const item: Item = {
+      id: uid('t_'),
+      x: Math.round(p.x),
+      y: Math.round(p.y),
+      text,
+      by,
+      createdAt: t,
+      editedAt: t,
+    };
     if (!text) {
       editSnapshot.current = { id: item.id, items: b.items, isNew: true };
       commitItems((items) => [...items, item], false);
@@ -155,7 +188,10 @@ export default function Margin({ user }: { user: User | null }) {
   };
 
   const commitEdit = (id: string, raw: string) => {
-    const snap = editSnapshot.current && editSnapshot.current.id === id ? editSnapshot.current : null;
+    const snap =
+      editSnapshot.current && editSnapshot.current.id === id
+        ? editSnapshot.current
+        : null;
     editSnapshot.current = null;
     setEditingId((e) => (e === id ? null : e));
     const b = currentBoard();
@@ -165,7 +201,10 @@ export default function Margin({ user }: { user: User | null }) {
     const text = raw.replace(/ /g, ' ').replace(/^\n+/, '').replace(/\s+$/, '');
     if (!text.trim()) {
       // An emptied box goes away. A brand-new empty box leaves no trace in undo.
-      commitItems((items) => items.filter((i) => i.id !== id), !(snap && snap.isNew));
+      commitItems(
+        (items) => items.filter((i) => i.id !== id),
+        !(snap && snap.isNew),
+      );
       setSelected((s) => {
         const n = new Set(s);
         n.delete(id);
@@ -174,7 +213,8 @@ export default function Margin({ user }: { user: User | null }) {
       return;
     }
     if (text === cur.text) return;
-    const edited = (items: Item[]) => items.map((i) => (i.id === id ? { ...i, text, editedAt: nowISO() } : i));
+    const edited = (items: Item[]) =>
+      items.map((i) => (i.id === id ? { ...i, text, editedAt: nowISO() } : i));
     if (snap && snap.isNew) {
       pushHistory(b.id, snap.items);
       commitItems(edited, false);
@@ -185,7 +225,13 @@ export default function Margin({ user }: { user: User | null }) {
 
   const moveItems = (ids: string[], dx: number, dy: number) => {
     const set = new Set(ids);
-    commitItems((items) => items.map((i) => (set.has(i.id) ? { ...i, x: Math.round(i.x + dx), y: Math.round(i.y + dy) } : i)));
+    commitItems((items) =>
+      items.map((i) =>
+        set.has(i.id)
+          ? { ...i, x: Math.round(i.x + dx), y: Math.round(i.y + dy) }
+          : i,
+      ),
+    );
   };
 
   const deleteSelected = () => {
@@ -204,7 +250,10 @@ export default function Margin({ user }: { user: User | null }) {
     h.future.push(b.items);
     commitItems(() => prev, false);
     setEditingId(null);
-    setSelected((s) => new Set(Array.from(s).filter((id) => prev.some((i) => i.id === id))));
+    setSelected(
+      (s) =>
+        new Set(Array.from(s).filter((id) => prev.some((i) => i.id === id))),
+    );
   };
 
   const redo = () => {
@@ -230,7 +279,9 @@ export default function Margin({ user }: { user: User | null }) {
     const sel = Array.from(selectedRef.current);
     let p: Pt = api ? api.center() : { x: 0, y: 0 };
     if (api && sel.length) {
-      const rects = sel.map((id) => api.rectOf(id)).filter((r): r is NonNullable<typeof r> => !!r);
+      const rects = sel
+        .map((id) => api.rectOf(id))
+        .filter((r): r is NonNullable<typeof r> => !!r);
       if (rects.length) {
         const right = Math.max(...rects.map((r) => r.x + r.w));
         const top = Math.min(...rects.map((r) => r.y));
@@ -268,7 +319,11 @@ export default function Margin({ user }: { user: User | null }) {
     update((s) => {
       const boards = s.boards.filter((b) => b.id !== id);
       if (!boards.length) return s;
-      return { ...s, boards, currentId: s.currentId === id ? boards[0].id : s.currentId };
+      return {
+        ...s,
+        boards,
+        currentId: s.currentId === id ? boards[0].id : s.currentId,
+      };
     });
     setSelected(new Set());
     void removeRemote({ id: id as Id<'boards'> });
@@ -282,7 +337,13 @@ export default function Margin({ user }: { user: User | null }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${b.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'board'}.margin.json`;
+    a.download = `${
+      b.name
+        .replace(/[^\w\- ]+/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .toLowerCase() || 'board'
+    }.margin.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -308,8 +369,22 @@ export default function Margin({ user }: { user: User | null }) {
 
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
-  const actions = useRef({ deleteSelected, undo, redo, createAt, dropPoint, startEdit });
-  actions.current = { deleteSelected, undo, redo, createAt, dropPoint, startEdit };
+  const actions = useRef({
+    deleteSelected,
+    undo,
+    redo,
+    createAt,
+    dropPoint,
+    startEdit,
+  });
+  actions.current = {
+    deleteSelected,
+    undo,
+    redo,
+    createAt,
+    dropPoint,
+    startEdit,
+  };
   const panelsRef = useRef({ askOpen, boardsOpen });
   panelsRef.current = { askOpen, boardsOpen };
 
@@ -377,7 +452,10 @@ export default function Margin({ user }: { user: User | null }) {
       e.preventDefault();
       const a = actions.current;
       const p = a.dropPoint();
-      a.createAt({ x: p.x - 8, y: p.y - 14 }, text.replace(/\r\n/g, '\n').trim());
+      a.createAt(
+        { x: p.x - 8, y: p.y - 14 },
+        text.replace(/\r\n/g, '\n').trim(),
+      );
     };
 
     // Copy selected boxes as plain text, for pasting into other tools.
@@ -407,7 +485,8 @@ export default function Margin({ user }: { user: User | null }) {
   }, []);
 
   if (!store) return <div className="fixed inset-0" />;
-  const board = store.boards.find((b) => b.id === store.currentId) ?? store.boards[0];
+  const board =
+    store.boards.find((b) => b.id === store.currentId) ?? store.boards[0];
 
   return (
     <div className="fixed inset-0">
@@ -431,17 +510,19 @@ export default function Margin({ user }: { user: User | null }) {
       {board.items.length === 0 && !editingId && (
         <div
           className="pointer-events-none fixed top-[42%] left-1/2 w-full -translate-x-1/2 -translate-y-1/2 px-4 text-center"
-          aria-hidden="true"
-        >
-          <p className="m-0 font-serif text-[22px] leading-snug font-normal text-zinc-500 italic">Double-click anywhere to write.</p>
-          <p className="mt-2 font-mono text-xs font-normal text-zinc-400">Paste to drop text in &middot; &#8984;K to ask</p>
+          aria-hidden="true">
+          <p className="m-0 font-serif text-[22px] leading-snug font-normal text-zinc-500 italic">
+            Double-click anywhere to write.
+          </p>
+          <p className="mt-2 font-mono text-xs font-normal text-zinc-400">
+            Paste to drop text in &middot; &#8984;K to ask
+          </p>
         </div>
       )}
 
       <nav
-        className="fixed bottom-[calc(16px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-0.5 rounded-xl border border-stone-300 bg-white/80 p-1 shadow-xl backdrop-blur-md"
-        aria-label="Toolbar"
-      >
+        className="fixed bottom-[calc(16px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-0.5 rounded-xl border border-stone-100 bg-white/80 p-1 shadow-xl backdrop-blur-md"
+        aria-label="Toolbar">
         <button
           type="button"
           className="inline-flex max-w-[220px] min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap hover:bg-zinc-900/10 aria-expanded:bg-zinc-900 aria-expanded:text-stone-100 max-sm:px-2"
@@ -450,35 +531,54 @@ export default function Margin({ user }: { user: User | null }) {
           onClick={() => {
             setRenameOnOpen(false);
             setBoardsOpen((o) => !o);
-          }}
-        >
+          }}>
           <span className="truncate">{board.name}</span>
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            aria-hidden="true">
+            <path
+              d="M2 4l3 3 3-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
           </svg>
         </button>
-        <span className="mx-1 h-5 w-px shrink-0 bg-stone-300" />
+        <span className="mx-1 h-5 w-px shrink-0 bg-stone-100" />
         <button
           type="button"
           className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 max-sm:px-2"
           title="New text (T)"
           onClick={() => {
-            const c = canvasApi.current ? canvasApi.current.center() : { x: 0, y: 0 };
+            const c = canvasApi.current
+              ? canvasApi.current.center()
+              : { x: 0, y: 0 };
             createAt({ x: c.x - 120, y: c.y - 14 });
-          }}
-        >
-          Text <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">T</kbd>
+          }}>
+          Text{' '}
+          <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">
+            T
+          </kbd>
         </button>
-        <button type="button" className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100 aria-pressed:[&_kbd]:text-current aria-pressed:[&_kbd]:opacity-70 max-sm:px-2" aria-pressed={askOpen} title={'Ask (⌘K)'} onClick={() => setAskOpen((o) => !o)}>
-          Ask <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">&#8984;K</kbd>
+        <button
+          type="button"
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100 aria-pressed:[&_kbd]:text-current aria-pressed:[&_kbd]:opacity-70 max-sm:px-2"
+          aria-pressed={askOpen}
+          title={'Ask (⌘K)'}
+          onClick={() => setAskOpen((o) => !o)}>
+          Ask{' '}
+          <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">
+            &#8984;K
+          </kbd>
         </button>
-        <span className="mx-1 h-5 w-px shrink-0 bg-stone-300" />
+        <span className="mx-1 h-5 w-px shrink-0 bg-stone-100" />
         <button
           type="button"
           className="inline-flex min-w-[54px] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 font-mono text-xs font-medium whitespace-nowrap text-zinc-500 tabular-nums hover:bg-zinc-900/10 max-sm:px-2"
           title="Zoom to fit (Shift+1)"
-          onClick={() => canvasApi.current?.fit()}
-        >
+          onClick={() => canvasApi.current?.fit()}>
           {Math.round(zoom * 100)}%
         </button>
       </nav>
