@@ -1,11 +1,29 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, isTextUIPart, type UIMessage } from 'ai';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import type { AskRequest, AskTurn, Item } from '@/lib/types';
-import { nowISO, uid } from '@/lib/store';
+import type { AskTurn, Item } from '@/lib/types';
+import { nowISO } from '@/lib/store';
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from '@/components/ui/message-scroller';
 
 const PASS_KEY = 'margin:passcode';
+
+type AskMeta = {
+  scope?: number;
+  at?: string;
+  status?: AskTurn['status'];
+};
+
+type AskMessage = UIMessage<AskMeta>;
 
 interface Props {
   boardName: string;
@@ -25,32 +43,220 @@ function readPass(): string {
   }
 }
 
+function textOf(m: AskMessage): string {
+  return m.parts.filter(isTextUIPart).map((p) => p.text).join('');
+}
+
+function turnsToMessages(turns: AskTurn[]): AskMessage[] {
+  const out: AskMessage[] = [];
+  for (const t of turns) {
+    out.push({
+      id: t.id,
+      role: 'user',
+      metadata: { scope: t.scope, at: t.at },
+      parts: [{ type: 'text', text: t.q }],
+    });
+    if (t.a || t.status !== 'done') {
+      out.push({
+        id: `${t.id}-a`,
+        role: 'assistant',
+        metadata: { status: t.status },
+        parts: [{ type: 'text', text: t.a }],
+      });
+    }
+  }
+  return out;
+}
+
+function dropLastTurn(messages: AskMessage[]): AskMessage[] {
+  const next = [...messages];
+  if (next.at(-1)?.role === 'assistant') next.pop();
+  if (next.at(-1)?.role === 'user') next.pop();
+  return next;
+}
+
+function messagesToTurns(messages: AskMessage[], lastStatus: AskTurn['status'], fallbackScope: number): AskTurn[] {
+  const turns: AskTurn[] = [];
+  let pending: AskMessage | undefined;
+  for (const m of messages) {
+    if (m.role === 'user') {
+      if (pending) {
+        turns.push({
+          id: pending.id,
+          q: textOf(pending),
+          a: '',
+          at: typeof pending.metadata?.at === 'string' ? pending.metadata.at : nowISO(),
+          scope: typeof pending.metadata?.scope === 'number' ? pending.metadata.scope : fallbackScope,
+          status: 'done',
+        });
+      }
+      pending = m;
+    } else if (m.role === 'assistant' && pending) {
+      turns.push({
+        id: pending.id,
+        q: textOf(pending),
+        a: textOf(m),
+        at: typeof pending.metadata?.at === 'string' ? pending.metadata.at : nowISO(),
+        scope: typeof pending.metadata?.scope === 'number' ? pending.metadata.scope : fallbackScope,
+        status: m.metadata?.status ?? 'done',
+      });
+      pending = undefined;
+    }
+  }
+  if (pending) {
+    turns.push({
+      id: pending.id,
+      q: textOf(pending),
+      a: '',
+      at: typeof pending.metadata?.at === 'string' ? pending.metadata.at : nowISO(),
+      scope: typeof pending.metadata?.scope === 'number' ? pending.metadata.scope : fallbackScope,
+      status: lastStatus,
+    });
+  } else if (turns.length) {
+    turns[turns.length - 1] = { ...turns[turns.length - 1], status: lastStatus };
+  }
+  return turns.slice(-30);
+}
+
+function lastUserTextFromBody(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null;
+  const messages = (body as { messages?: unknown }).messages;
+  if (!Array.isArray(messages)) return null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i] as AskMessage | undefined;
+    if (m?.role === 'user') return textOf(m) || null;
+  }
+  return null;
+}
+
 export default function AskPanel(props: Props) {
   const [input, setInput] = useState('');
-  const [live, setLive] = useState<{ id: string; a: string } | null>(null);
-  const [busy, setBusy] = useState(false);
   const [needPass, setNeedPass] = useState(false);
   const [needSignIn, setNeedSignIn] = useState(false);
   const [pass, setPass] = useState('');
   const [pendingQ, setPendingQ] = useState<string | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const ctl = useRef<AbortController | null>(null);
-  const scroller = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const turnsRef = useRef(props.turns);
-  turnsRef.current = props.turns;
+  const propsRef = useRef(props);
+  propsRef.current = props;
+  const authBlock = useRef<'signin' | 'passcode' | null>(null);
+  const boardRef = useRef({
+    boardName: props.boardName,
+    items: props.items,
+    selectedIds: props.selectedIds,
+  });
+  boardRef.current = { boardName: props.boardName, items: props.items, selectedIds: props.selectedIds };
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport<AskMessage>({
+        api: '/api/ask',
+        headers: () => ({ 'x-margin-passcode': readPass() }),
+        body: () => {
+          const b = boardRef.current;
+          return {
+            boardName: b.boardName,
+            items: b.items.map((i) => ({ id: i.id, text: i.text, x: i.x, y: i.y, by: i.by })),
+            selectedIds: b.selectedIds,
+          };
+        },
+        fetch: async (input, init) => {
+          const res = await fetch(input, init);
+          if (res.status !== 401) return res;
+          let code: 'signin' | 'passcode' = 'passcode';
+          let msg = '';
+          try {
+            const j = (await res.json()) as { error?: string; code?: string };
+            if (j.code === 'signin') code = 'signin';
+            if (j.error) msg = j.error;
+          } catch {
+            // no body
+          }
+          authBlock.current = code;
+          if (code === 'signin') {
+            setNeedSignIn(true);
+          } else {
+            setNeedPass(true);
+            try {
+              setPendingQ(lastUserTextFromBody(JSON.parse(String(init?.body ?? ''))));
+            } catch {
+              setPendingQ(null);
+            }
+          }
+          return new Response(JSON.stringify({ error: msg, code }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' },
+          });
+        },
+      }),
+    [],
+  );
+
+  const { messages, sendMessage, setMessages, stop, status } = useChat<AskMessage>({
+    transport,
+    messages: turnsToMessages(props.turns),
+    onFinish({ messages: next, isAbort, isError }) {
+      const p = propsRef.current;
+      const fallbackScope = p.selectedIds.length || p.items.length;
+      if (authBlock.current === 'passcode') {
+        const kept = dropLastTurn(next);
+        setMessages(kept);
+        p.onTurns(messagesToTurns(kept, 'done', fallbackScope));
+        authBlock.current = null;
+        return;
+      }
+      let lastStatus: AskTurn['status'] = isAbort ? 'stopped' : isError ? 'error' : 'done';
+      let msgs = next;
+      const last = msgs.at(-1);
+      if (last?.role === 'assistant') {
+        let a = textOf(last);
+        if (!a.trim() && lastStatus === 'done') lastStatus = 'error';
+        if (!a.trim() && lastStatus === 'error') {
+          a =
+            authBlock.current === 'signin'
+              ? 'Sign in again to keep asking.'
+              : 'No answer came back. Try asking again.';
+        }
+        msgs = msgs.map((m, i) =>
+          i === msgs.length - 1
+            ? { ...m, metadata: { ...m.metadata, status: lastStatus }, parts: [{ type: 'text', text: a }] }
+            : m,
+        );
+        setMessages(msgs);
+      } else if (last?.role === 'user' && isError) {
+        const a =
+          authBlock.current === 'signin'
+            ? 'Sign in again to keep asking.'
+            : 'Something went wrong asking Claude.';
+        msgs = [
+          ...msgs,
+          {
+            id: `${last.id}-a`,
+            role: 'assistant',
+            metadata: { status: 'error' },
+            parts: [{ type: 'text', text: a }],
+          },
+        ];
+        lastStatus = 'error';
+        setMessages(msgs);
+      }
+      p.onTurns(messagesToTurns(msgs, lastStatus, fallbackScope));
+      authBlock.current = null;
+    },
+  });
+
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
 
   useEffect(() => {
     inputRef.current?.focus();
-    return () => ctl.current?.abort();
+    return () => {
+      void stopRef.current();
+    };
   }, []);
 
-  useEffect(() => {
-    const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [props.turns.length, live?.a]);
-
+  const busy = status === 'submitted' || status === 'streaming';
   const scope = props.selectedIds.length || props.items.length;
   const scopeLabel = props.selectedIds.length
     ? `Reading ${props.selectedIds.length} selected box${props.selectedIds.length === 1 ? '' : 'es'}`
@@ -59,90 +265,8 @@ export default function AskPanel(props: Props) {
   async function send(q: string) {
     const question = q.trim();
     if (!question || busy) return;
-    const turn: AskTurn = { id: uid('a_'), q: question, a: '', at: nowISO(), scope, status: 'done' };
-    const history = turnsRef.current.filter((t) => t.status === 'done' && t.a).slice(-6).map((t) => ({ q: t.q, a: t.a }));
-    props.onTurns([...turnsRef.current, turn].slice(-30));
     setInput('');
-    setBusy(true);
-    setLive({ id: turn.id, a: '' });
-    const controller = new AbortController();
-    ctl.current = controller;
-
-    const body: AskRequest = {
-      question,
-      boardName: props.boardName,
-      items: props.items.map((i) => ({ id: i.id, text: i.text, x: i.x, y: i.y, by: i.by })),
-      selectedIds: props.selectedIds,
-      history,
-    };
-
-    let answer = '';
-    let status: AskTurn['status'] = 'done';
-    try {
-      const res = await fetch('/api/ask', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-margin-passcode': readPass() },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      if (res.status === 401) {
-        let code = 'passcode';
-        let msg = '';
-        try {
-          const j = (await res.json()) as { error?: string; code?: string };
-          if (j.code) code = j.code;
-          if (j.error) msg = j.error;
-        } catch {
-          // no body
-        }
-        if (code === 'signin') {
-          setNeedSignIn(true);
-          answer = msg || 'Sign in again to keep asking.';
-          status = 'error';
-        } else {
-          setNeedPass(true);
-          setPendingQ(question);
-          props.onTurns(turnsRef.current.filter((t) => t.id !== turn.id));
-          return;
-        }
-      } else if (!res.ok || !res.body) {
-        let msg = 'Something went wrong asking Claude.';
-        try {
-          const j = (await res.json()) as { error?: string };
-          if (j.error) msg = j.error;
-        } catch {
-          // keep the default message
-        }
-        answer = msg;
-        status = 'error';
-      } else {
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          answer += dec.decode(value, { stream: true });
-          setLive({ id: turn.id, a: answer });
-        }
-        answer += dec.decode();
-        if (!answer.trim()) {
-          answer = 'No answer came back. Try asking again.';
-          status = 'error';
-        }
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        status = 'stopped';
-      } else {
-        answer = answer || 'Couldn’t reach the server. Check your connection and try again.';
-        status = 'error';
-      }
-    } finally {
-      ctl.current = null;
-      setBusy(false);
-      setLive(null);
-    }
-    props.onTurns(turnsRef.current.map((t) => (t.id === turn.id ? { ...t, a: answer, status } : t)));
+    await sendMessage({ text: question, metadata: { scope, at: nowISO() } });
   }
 
   function onSubmit(e: FormEvent) {
@@ -174,17 +298,16 @@ export default function AskPanel(props: Props) {
     if (q) void send(q);
   }
 
-  async function copy(t: AskTurn) {
+  async function copy(text: string, id: string) {
     try {
-      await navigator.clipboard.writeText(t.a);
-      setCopied(t.id);
+      await navigator.clipboard.writeText(text);
+      setCopied(id);
       setTimeout(() => setCopied(null), 1500);
     } catch {
       // clipboard unavailable
     }
   }
 
-  // Drag the panel by its header. It floats; nothing is docked.
   function onHeaderDown(e: ReactPointerEvent<HTMLDivElement>) {
     if ((e.target as HTMLElement).closest('button')) return;
     if (window.matchMedia('(max-width: 640px)').matches) return;
@@ -206,7 +329,8 @@ export default function AskPanel(props: Props) {
     window.addEventListener('pointerup', up);
   }
 
-  const turns = props.turns;
+  const last = messages.at(-1);
+  const waiting = busy && last?.role === 'user';
 
   return (
     <section
@@ -223,8 +347,15 @@ export default function AskPanel(props: Props) {
           <span className="text-[13px] text-zinc-500">{scopeLabel}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {turns.length > 0 && !busy && (
-            <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => props.onTurns([])}>
+          {messages.length > 0 && !busy && (
+            <button
+              type="button"
+              className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40"
+              onClick={() => {
+                setMessages([]);
+                props.onTurns([]);
+              }}
+            >
               Clear
             </button>
           )}
@@ -234,49 +365,70 @@ export default function AskPanel(props: Props) {
         </div>
       </div>
 
-      <div className="grid min-h-20 content-start gap-[18px] overflow-auto px-3.5 py-3" ref={scroller}>
-        {turns.length === 0 && (
-          <p className="m-0 font-serif text-[15px] leading-snug font-normal text-zinc-500 italic">
-            Ask about what&rsquo;s on this board. Select boxes first to narrow it. The assistant finds, reflects and asks
-            questions back; it won&rsquo;t pitch ideas unless you ask for them.
-          </p>
-        )}
-        {turns.map((t) => {
-          const streaming = live && live.id === t.id;
-          const a = streaming ? live.a : t.a;
-          const isErr = t.status === 'error' && !streaming;
-          return (
-            <div className="grid gap-1.5" key={t.id}>
-              <div className="text-[13.5px] font-semibold wrap-anywhere whitespace-pre-wrap">{t.q}</div>
-              {streaming && !a ? (
-                <div className="border-l-[1.5px] border-sky-300 pl-[11px] font-serif text-[15.5px] leading-relaxed text-zinc-400 italic">
-                  Reading the board&hellip;
-                </div>
-              ) : (
-                <div
-                  className={
-                    'border-l-[1.5px] pl-[11px] font-serif text-[15.5px] leading-relaxed wrap-anywhere whitespace-pre-wrap' +
-                    (isErr ? ' border-red-700 text-red-700' : ' border-sky-300')
-                  }
-                >
-                  {a}
-                  {t.status === 'stopped' && !streaming && <span className="text-zinc-400"> (stopped)</span>}
-                </div>
+      <MessageScrollerProvider autoScroll>
+        <MessageScroller className="min-h-20">
+          <MessageScrollerViewport>
+            <MessageScrollerContent className="gap-[18px] px-3.5 py-3">
+              {messages.length === 0 && (
+                <MessageScrollerItem>
+                  <p className="m-0 font-serif text-[15px] leading-snug font-normal text-zinc-500 italic">
+                    Ask about what&rsquo;s on this board. Select boxes first to narrow it. The assistant finds, reflects and asks
+                    questions back; it won&rsquo;t pitch ideas unless you ask for them.
+                  </p>
+                </MessageScrollerItem>
               )}
-              {!streaming && t.status === 'done' && t.a && (
-                <div className="flex gap-1.5 pl-3">
-                  <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => props.onPut(t.a)}>
-                    Put on canvas
-                  </button>
-                  <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => void copy(t)}>
-                    {copied === t.id ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
+              {messages.map((m, i) => {
+                const isLast = i === messages.length - 1 && !waiting;
+                const a = textOf(m);
+                const streaming = busy && isLast && m.role === 'assistant';
+                const isErr = !streaming && (m.metadata?.status === 'error' || (status === 'error' && isLast && m.role === 'assistant'));
+                const done = !streaming && !busy && m.role === 'assistant' && m.metadata?.status !== 'error' && m.metadata?.status !== 'stopped' && !!a;
+                return (
+                  <MessageScrollerItem key={m.id} messageId={m.id} scrollAnchor={isLast}>
+                    {m.role === 'user' ? (
+                      <div className="text-[13.5px] font-semibold wrap-anywhere whitespace-pre-wrap">{a}</div>
+                    ) : streaming && !a ? (
+                      <div className="border-l-[1.5px] border-sky-300 pl-[11px] font-serif text-[15.5px] leading-relaxed text-zinc-400 italic">
+                        Reading the board&hellip;
+                      </div>
+                    ) : (
+                      <div className="grid gap-1.5">
+                        <div
+                          className={
+                            'border-l-[1.5px] pl-[11px] font-serif text-[15.5px] leading-relaxed wrap-anywhere whitespace-pre-wrap' +
+                            (isErr ? ' border-red-700 text-red-700' : ' border-sky-300')
+                          }
+                        >
+                          {a}
+                          {m.metadata?.status === 'stopped' && !streaming && <span className="text-zinc-400"> (stopped)</span>}
+                        </div>
+                        {done && (
+                          <div className="flex gap-1.5 pl-3">
+                            <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => props.onPut(a)}>
+                              Put on canvas
+                            </button>
+                            <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => void copy(a, m.id)}>
+                              {copied === m.id ? 'Copied' : 'Copy'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </MessageScrollerItem>
+                );
+              })}
+              {waiting && (
+                <MessageScrollerItem scrollAnchor>
+                  <div className="border-l-[1.5px] border-sky-300 pl-[11px] font-serif text-[15.5px] leading-relaxed text-zinc-400 italic">
+                    Reading the board&hellip;
+                  </div>
+                </MessageScrollerItem>
               )}
-            </div>
-          );
-        })}
-      </div>
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
 
       {needSignIn ? (
         <div className="grid gap-2 border-t border-stone-300 px-3 pt-2.5 pb-3">
@@ -323,7 +475,7 @@ export default function AskPanel(props: Props) {
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11.5px] text-zinc-400">Enter to ask &middot; Shift+Enter for a new line</span>
             {busy ? (
-              <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => ctl.current?.abort()}>
+              <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => stop()}>
                 Stop
               </button>
             ) : (

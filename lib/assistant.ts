@@ -1,4 +1,13 @@
+import { anthropic } from '@ai-sdk/anthropic';
 import type { AskRequest } from './types';
+
+const DEFAULT_MODEL = 'claude-sonnet-5-5';
+const HISTORY_MESSAGES = 13;
+
+/** Later BYOK seam: swap this for OpenAI or a user-supplied key. Server-only. */
+export function languageModel() {
+  return anthropic(process.env.ANTHROPIC_MODEL || DEFAULT_MODEL);
+}
 
 /**
  * How the assistant behaves. This is the product's core stance, so it lives in one place.
@@ -44,11 +53,36 @@ export function boardContext(req: AskRequest): string {
   return `Board: "${req.boardName}"\nToday: ${new Date().toDateString()}\n${scope}\n\nBoxes (id, position, text):\n\n${lines.join('\n\n') || '(the board is empty)'}`;
 }
 
+function lastUserText(messages: unknown): string {
+  if (!Array.isArray(messages)) return '';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!m || typeof m !== 'object') continue;
+    const rec = m as Record<string, unknown>;
+    if (rec.role !== 'user' || !Array.isArray(rec.parts)) continue;
+    const text = rec.parts
+      .map((p) => {
+        if (!p || typeof p !== 'object') return '';
+        const part = p as Record<string, unknown>;
+        return part.type === 'text' && typeof part.text === 'string' ? part.text : '';
+      })
+      .join('');
+    return text.trim();
+  }
+  return '';
+}
+
+/** Last 6 completed exchanges plus the current user message. */
+export function recentAskMessages(messages: unknown): unknown[] {
+  if (!Array.isArray(messages)) return [];
+  return messages.slice(-HISTORY_MESSAGES);
+}
+
 /** Returns a clean request or an error message. */
 export function validateAsk(body: unknown): AskRequest | string {
   if (!body || typeof body !== 'object') return 'Malformed request.';
   const b = body as Record<string, unknown>;
-  const question = typeof b.question === 'string' ? b.question.trim() : '';
+  const question = (typeof b.question === 'string' ? b.question.trim() : '') || lastUserText(b.messages);
   if (!question) return 'Ask something first.';
   if (question.length > 8000) return 'That message is too long.';
   const items = Array.isArray(b.items) ? b.items : [];
