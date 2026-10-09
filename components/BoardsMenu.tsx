@@ -71,77 +71,93 @@ export default function BoardsMenu(props: Props) {
   const sorted = [...props.boards].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   return (
-    <div className="float boards" ref={ref} role="dialog" aria-label="Boards">
-      <div className="eyebrow">Boards</div>
-      <ul className="board-list">
+    <div
+      className="fixed bottom-[calc(72px+env(safe-area-inset-bottom,0px))] left-1/2 z-30 grid w-80 max-h-[min(520px,calc(100vh-120px))] max-w-[calc(100vw-24px)] -translate-x-1/2 gap-2 overflow-auto rounded-xl border border-stone-300 bg-white p-3 shadow-xl"
+      ref={ref}
+      role="dialog"
+      aria-label="Boards"
+    >
+      <div className="font-mono text-[11px] font-medium tracking-widest text-sky-700 uppercase">Boards</div>
+      <ul className="m-0 grid list-none gap-0.5 p-0">
         {sorted.map((b) => (
           <li key={b.id}>
             <button
               type="button"
-              className={'board-row' + (b.id === props.currentId ? ' current' : '')}
+              className={
+                'flex w-full cursor-pointer justify-between gap-2.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-left hover:bg-zinc-900/5' +
+                (b.id === props.currentId ? ' bg-sky-100 font-semibold' : '')
+              }
               aria-current={b.id === props.currentId ? 'true' : undefined}
               onClick={() => props.onSwitch(b.id)}
             >
-              <span className="board-name">{b.name}</span>
-              <span className="board-count">{b.items.length}</span>
+              <span className="min-w-0 truncate">{b.name}</span>
+              <span className="font-mono text-[11.5px] leading-relaxed text-zinc-400 tabular-nums">{b.items.length}</span>
             </button>
           </li>
         ))}
       </ul>
-      <button type="button" className="ghost-btn wide" onClick={props.onCreate}>
+      <button type="button" className="w-full cursor-pointer whitespace-nowrap rounded-md border border-dashed border-stone-300 bg-transparent px-2.5 py-1 text-left text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={props.onCreate}>
         + New board
       </button>
 
       {current && (
-        <div className="board-tools">
+        <div className="grid gap-2 border-t border-stone-300 pt-2.5">
           {renaming ? (
-            <form onSubmit={submitRename} className="row">
-              <input id="board-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus aria-label="Board name" onFocus={(e) => e.currentTarget.select()} />
-              <button type="submit" className="primary-btn">
+            <form onSubmit={submitRename} className="flex items-center gap-2">
+              <input
+                id="board-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                aria-label="Board name"
+                onFocus={(e) => e.currentTarget.select()}
+                className="w-full min-w-0 rounded-lg border border-stone-300 bg-stone-100 px-2.5 py-1.5 focus:outline-2 focus:-outline-offset-1 focus:outline-sky-700"
+              />
+              <button type="submit" className="inline-block cursor-pointer whitespace-nowrap rounded-md border border-zinc-900 bg-zinc-900 px-2.5 py-1 text-[13px] font-semibold text-stone-100 no-underline disabled:cursor-default disabled:opacity-40">
                 Save
               </button>
             </form>
           ) : confirmDelete ? (
-            <div className="confirm">
+            <div className="grid gap-2 text-[13px]">
               <span>
                 Delete &ldquo;{current.name}&rdquo; and its {current.items.length} box{current.items.length === 1 ? '' : 'es'}? This can&rsquo;t be undone.
               </span>
-              <div className="row">
-                <button type="button" className="danger-btn" onClick={() => props.onDelete(current.id)}>
+              <div className="flex items-center gap-2">
+                <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-red-700 bg-transparent px-2.5 py-1 text-[13px] text-red-700" onClick={() => props.onDelete(current.id)}>
                   Delete board
                 </button>
-                <button type="button" className="ghost-btn" onClick={() => setConfirmDelete(false)}>
+                <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => setConfirmDelete(false)}>
                   Keep it
                 </button>
               </div>
             </div>
           ) : (
-            <div className="row wrap">
-              <button type="button" className="ghost-btn" onClick={() => setRenaming(true)}>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => setRenaming(true)}>
                 Rename
               </button>
-              <button type="button" className="ghost-btn" onClick={() => props.onExport(current.id)}>
+              <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => props.onExport(current.id)}>
                 Export
               </button>
-              <button type="button" className="ghost-btn" onClick={() => fileRef.current?.click()}>
+              <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => fileRef.current?.click()}>
                 Import
               </button>
-              <button type="button" className="ghost-btn" onClick={() => setConfirmDelete(true)} disabled={props.boards.length < 2} title={props.boards.length < 2 ? 'Keep at least one board' : undefined}>
+              <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => setConfirmDelete(true)} disabled={props.boards.length < 2} title={props.boards.length < 2 ? 'Keep at least one board' : undefined}>
                 Delete
               </button>
             </div>
           )}
-          {error && <p className="err-text">{error}</p>}
+          {error && <p className="m-0 text-[13px] text-red-700">{error}</p>}
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => void onFile(e)} />
         </div>
       )}
 
       {props.user && (
-        <form action={signOut} className="account">
-          <span className="account-name" title={props.user.email}>
+        <form action={signOut} className="flex items-center justify-between gap-2 border-t border-stone-300 pt-2.5">
+          <span className="min-w-0 truncate text-[13px] text-zinc-500" title={props.user.email}>
             {props.user.name || props.user.email}
           </span>
-          <button type="submit" className="ghost-btn">
+          <button type="submit" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40">
             Sign out
           </button>
         </form>

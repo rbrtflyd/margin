@@ -364,11 +364,11 @@ export default function Margin({ user }: { user: User | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!store) return <div className="app" />;
+  if (!store) return <div className="fixed inset-0" />;
   const board = store.boards.find((b) => b.id === store.currentId) ?? store.boards[0];
 
   return (
-    <div className="app">
+    <div className="fixed inset-0">
       <Canvas
         key={board.id}
         items={board.items}
@@ -387,16 +387,22 @@ export default function Margin({ user }: { user: User | null }) {
       />
 
       {board.items.length === 0 && !editingId && (
-        <div className="empty-hint" aria-hidden="true">
-          <p>Double-click anywhere to write.</p>
-          <p className="small">Paste to drop text in &middot; &#8984;K to ask</p>
+        <div
+          className="pointer-events-none fixed top-[42%] left-1/2 w-full -translate-x-1/2 -translate-y-1/2 px-4 text-center"
+          aria-hidden="true"
+        >
+          <p className="m-0 font-serif text-[22px] leading-snug font-normal text-zinc-500 italic">Double-click anywhere to write.</p>
+          <p className="mt-2 font-mono text-xs font-normal text-zinc-400">Paste to drop text in &middot; &#8984;K to ask</p>
         </div>
       )}
 
-      <nav className="toolbar" aria-label="Toolbar">
+      <nav
+        className="fixed bottom-[calc(16px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-0.5 rounded-xl border border-stone-300 bg-white/80 p-1 shadow-xl backdrop-blur-md"
+        aria-label="Toolbar"
+      >
         <button
           type="button"
-          className="tb board"
+          className="inline-flex max-w-[220px] min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap hover:bg-zinc-900/10 aria-expanded:bg-zinc-900 aria-expanded:text-stone-100 max-sm:px-2"
           data-boards-toggle
           aria-expanded={boardsOpen}
           onClick={() => {
@@ -404,28 +410,33 @@ export default function Margin({ user }: { user: User | null }) {
             setBoardsOpen((o) => !o);
           }}
         >
-          <span className="board-label">{board.name}</span>
+          <span className="truncate">{board.name}</span>
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
             <path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         </button>
-        <span className="sep" />
+        <span className="mx-1 h-5 w-px shrink-0 bg-stone-300" />
         <button
           type="button"
-          className="tb"
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 max-sm:px-2"
           title="New text (T)"
           onClick={() => {
             const c = canvasApi.current ? canvasApi.current.center() : { x: 0, y: 0 };
             createAt({ x: c.x - 120, y: c.y - 14 });
           }}
         >
-          Text <kbd>T</kbd>
+          Text <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">T</kbd>
         </button>
-        <button type="button" className="tb" aria-pressed={askOpen} title={'Ask (⌘K)'} onClick={() => setAskOpen((o) => !o)}>
-          Ask <kbd>&#8984;K</kbd>
+        <button type="button" className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100 aria-pressed:[&_kbd]:text-current aria-pressed:[&_kbd]:opacity-70 max-sm:px-2" aria-pressed={askOpen} title={'Ask (⌘K)'} onClick={() => setAskOpen((o) => !o)}>
+          Ask <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">&#8984;K</kbd>
         </button>
-        <span className="sep" />
-        <button type="button" className="tb zoom" title="Zoom to fit (Shift+1)" onClick={() => canvasApi.current?.fit()}>
+        <span className="mx-1 h-5 w-px shrink-0 bg-stone-300" />
+        <button
+          type="button"
+          className="inline-flex min-w-[54px] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 font-mono text-xs font-medium whitespace-nowrap text-zinc-500 tabular-nums hover:bg-zinc-900/10 max-sm:px-2"
+          title="Zoom to fit (Shift+1)"
+          onClick={() => canvasApi.current?.fit()}
+        >
           {Math.round(zoom * 100)}%
         </button>
       </nav>

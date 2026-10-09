@@ -1,6 +1,6 @@
 # Margin: notes for agents
 
-Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (managed Better Auth) via `@neondatabase/auth`. No UI libraries, no CSS framework: styles are in `app/globals.css`, driven by CSS custom properties with a dark-mode block.
+Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (managed Better Auth) via `@neondatabase/auth`. UI is Tailwind CSS v4 (stone paper, zinc ink, sky for the assistant). `app/globals.css` only has fonts, the flash animation, and base html/body.
 
 ## Product rules to keep intact
 

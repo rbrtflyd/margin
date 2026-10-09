@@ -387,7 +387,10 @@ export default function Canvas(props: Props) {
   return (
     <div
       ref={rootRef}
-      className={'canvas' + (panning ? ' panning' : spaceDown ? ' space' : '')}
+      className={
+        'absolute inset-0 touch-none overflow-hidden select-none bg-[radial-gradient(circle,#d6d3d1_1px,transparent_1.2px)]' +
+        (panning ? ' cursor-grabbing' : spaceDown ? ' cursor-grab' : '')
+      }
       style={{ backgroundSize: `${grid}px ${grid}px`, backgroundPosition: `${view.x}px ${view.y}px` }}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
@@ -395,17 +398,11 @@ export default function Canvas(props: Props) {
         if (!isEditable(e.target)) e.preventDefault();
       }}
     >
-      <div className="world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
+      <div className="absolute top-0 left-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
         {props.items.map((it) => {
           const off = dragging && dragging.ids.has(it.id) ? dragging : null;
           const editing = props.editingId === it.id;
-          const cls =
-            'item' +
-            (it.by === 'claude' ? ' claude' : '') +
-            (shown.has(it.id) ? ' sel' : '') +
-            (editing ? ' editing' : '') +
-            (off ? ' dragging' : '') +
-            (flash.has(it.id) ? ' flash' : '');
+          const selected = shown.has(it.id);
           return (
             <div
               key={it.id}
@@ -414,14 +411,23 @@ export default function Canvas(props: Props) {
                 if (el) els.current.set(it.id, el);
                 else els.current.delete(it.id);
               }}
-              className={cls}
+              className={
+                'absolute w-max min-w-7 max-w-80 rounded-md px-2.5 py-1.5 text-[15px] leading-snug wrap-anywhere whitespace-pre-wrap' +
+                (it.by === 'claude' ? ' font-serif text-base text-sky-800' : '') +
+                (selected ? ' ring-[1.5px] ring-sky-700' : ' hover:ring-1 hover:ring-sky-300') +
+                (editing ? ' bg-white ring-[1.5px] ring-sky-700' : '') +
+                (off ? ' opacity-85' : '') +
+                (flash.has(it.id) ? ' animate-flash motion-reduce:animate-none motion-reduce:bg-amber-200/70' : '')
+              }
               style={{ left: it.x + (off ? off.x : 0), top: it.y + (off ? off.y : 0), width: it.w ?? undefined }}
             >
-              {it.by === 'claude' && <div className="by">Claude</div>}
+              {it.by === 'claude' && (
+                <div className="mb-1 font-mono text-[9.5px] font-medium tracking-widest text-sky-700 uppercase">Claude</div>
+              )}
               {editing ? (
                 <Editor initial={it.text} onDone={(text) => propsRef.current.onEditCommit(it.id, text)} />
               ) : (
-                <div className="text">{it.text}</div>
+                <div>{it.text}</div>
               )}
             </div>
           );
@@ -429,7 +435,7 @@ export default function Canvas(props: Props) {
       </div>
       {marquee && (
         <div
-          className="marquee"
+          className="pointer-events-none absolute border border-sky-700 bg-sky-700/10"
           style={{
             left: Math.min(marquee.x0, marquee.x1),
             top: Math.min(marquee.y0, marquee.y1),
@@ -479,7 +485,7 @@ function Editor({ initial, onDone }: { initial: string; onDone: (text: string) =
   return (
     <div
       ref={ref}
-      className="text editor"
+      className="min-h-[1.42em] min-w-[2ch] cursor-text outline-none select-text"
       contentEditable="plaintext-only"
       suppressContentEditableWarning
       spellCheck
