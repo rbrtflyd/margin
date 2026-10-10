@@ -8,11 +8,14 @@
  * @module
  */
 
+import type * as assets from "../assets.js";
 import type * as auth from "../auth.js";
 import type * as boards__lib from "../boards/_lib.js";
 import type * as boards_mutations from "../boards/mutations.js";
 import type * as boards_queries from "../boards/queries.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as schemas_assets from "../schemas/assets.js";
 import type * as schemas_boards from "../schemas/boards.js";
 import type * as schemas_workspace from "../schemas/workspace.js";
 
@@ -23,11 +26,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  assets: typeof assets;
   auth: typeof auth;
   "boards/_lib": typeof boards__lib;
   "boards/mutations": typeof boards_mutations;
   "boards/queries": typeof boards_queries;
+  crons: typeof crons;
   http: typeof http;
+  "schemas/assets": typeof schemas_assets;
   "schemas/boards": typeof schemas_boards;
   "schemas/workspace": typeof schemas_workspace;
 }>;

@@ -24,7 +24,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 3B | Arrowheads, curves, auto sides, elbow bends | 0D | done |
 | 3C | Connector label editing | 3B | done |
 | 3D | Assistant reads connectors | none | done |
-| 4A | Image storage pipeline | 0A, 0D | open |
+| 4A | Image storage pipeline | 0A, 0D | done |
 | 4B | Image items on the canvas | 4A | open |
 | 4C | Link cards and `/api/unfurl` | 0D | open |
 | 4D | Embeds | 4C | open |
@@ -221,10 +221,10 @@ Update the item list in `CLAUDE.md` when these kinds ship.
 
 Image bytes never go in `items`, because a board document has a 1 MiB limit.
 
-- [ ] Convex file storage: a `generateUploadUrl` mutation, and a query that turns `assetId`s into URLs. Both are owner-checked.
-- [ ] In the browser, shrink images to at most 2048px on the long side and encode as WebP before upload.
-- [ ] Add a scheduled Convex job (cron) that deletes stored files no board has referenced for 30 days. Don't delete when an item is deleted, because undo can bring it back.
-- [ ] Decide how export handles images: inline as base64 in the JSON, or keep URLs. Write the choice down here.
+- [x] Convex file storage: a `generateUploadUrl` mutation, and a query that turns `assetId`s into URLs. Both are owner-checked.
+- [x] In the browser, shrink images to at most 2048px on the long side and encode as WebP before upload.
+- [x] Add a scheduled Convex job (cron) that deletes stored files no board has referenced for 30 days. Don't delete when an item is deleted, because undo can bring it back.
+- [x] Export keeps `assetId` in the JSON and does not inline base64. Imported boards on another account will not resolve files; that is acceptable for a single-person tool.
 
 ### 4B. Image items on the canvas
 
