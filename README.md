@@ -80,6 +80,6 @@ Every page and `/api/ask` require a session. The Anthropic key never reaches the
 
 ## Not built yet
 
-- The whiteboard work in [`docs/roadmap.md`](docs/roadmap.md): selection polish, styling, flowcharts, images, embeds, sections, export.
+- The whiteboard work in [`docs/roadmap.md`](docs/roadmap.md): selection polish, styling, flowcharts, images, embeds, sections.
 - Sources: Granola calls, OzBrain and downstream work (Figma, code, Paper) for the assistant to search.
 - Linting and tests.

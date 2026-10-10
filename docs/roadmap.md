@@ -30,10 +30,8 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 4D | Embeds | 4C | done |
 | 4E | Assistant reads images and links | 4B, 4C | done |
 | 5A | Sections | 0C, 0D | open |
-| 5B | Zoom menu, minimap, find | 0C | open |
+| 5B | Zoom menu and find | 0C | open |
 | 5C | Viewport culling and performance | 0C | open |
-| 5D | Export PNG and SVG | 0C | open |
-| 5E | Templates and duplicate board | 0A | open |
 | 6A | Context menu | 1A, 1C | open |
 | 6B | Shortcut sheet | none | open |
 | 6C | Touch polish | 3A | open |
@@ -251,7 +249,7 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 - [x] Send captions, link titles, descriptions, and URLs to the assistant along with the text.
 - [ ] Later and opt-in: send the image pixels to Claude.
 
-## Phase 5: Structure, navigation, output
+## Phase 5: Structure and navigation
 
 ### 5A. Sections
 
@@ -259,10 +257,9 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 - [ ] Section names go to the assistant, so it can say "in the Research section".
 - [ ] Sections render behind other items, and their title can be edited in place.
 
-### 5B. Zoom menu, minimap, find
+### 5B. Zoom menu and find
 
 - [ ] The zoom % button opens a menu: zoom in, zoom out, 100%, fit, zoom to selection (Shift+2).
-- [ ] A floating minimap that only appears while panning or zooming.
 - [ ] Find (Cmd+F): a floating input with next and previous, which pans to and highlights matches.
 - [ ] Jump to a section from a list.
 
@@ -271,17 +268,6 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 - [ ] Skip rendering items outside the viewport, plus a margin.
 - [ ] Memoize `BoardItem` so a drag only re-renders the items that moved.
 - [ ] Add a dev-only way to generate a board with 2,000 items. Panning and dragging should stay smooth.
-
-### 5D. Export PNG and SVG
-
-- [ ] Export the selection or the whole board as PNG or SVG, and copy as PNG to the clipboard.
-- [ ] Images need CORS-readable URLs to appear in exports; check Convex storage URLs.
-- [ ] PDF can come later.
-
-### 5E. Templates and duplicate board
-
-- [ ] Duplicate board in the board switcher.
-- [ ] A few starter templates (flowchart, retro, kanban), stored as boards that get copied.
 
 ## Phase 6: Polish
 
@@ -309,6 +295,9 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 ## Not planned
 
 - **Rotation.** It complicates hit-testing, resizing, connector anchors, and smart guides, for a feature people rarely use on whiteboards.
+- PNG/SVG export (JSON import/export already exists).
+- Templates and duplicate board.
+- Minimap.
 - Freehand drawing.
 - Multiplayer and cursors.
 - Comments.
