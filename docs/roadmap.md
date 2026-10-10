@@ -14,7 +14,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 0D | Item schema v2 | none | done |
 | 0E | Geometry tests and undo coalescing | 0A | done |
 | 1A | Duplicate, nudge, copy and paste items | 0B | done |
-| 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | open |
+| 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | done |
 | 1C | Stacking order, lock, group | 0B, 0D | open |
 | 1D | Align, distribute, smart guides, grid | 0C | open |
 | 2A | Shapes rendered as SVG, more shapes | 0D | open |
@@ -139,10 +139,10 @@ Done when `npm test` passes, and holding an arrow key creates one undo step inst
 
 ### 1B. Multi-selection: bar, resize, modifiers, hover
 
-- [ ] Show `SelectionBar` for several items, with shared values and a "mixed" state when they differ.
-- [ ] Draw one bounding box around a multi-selection, with handles that scale positions and sizes together. Connectors follow.
-- [ ] Change resize to match FigJam: free by default, Shift keeps proportions, Alt resizes from the center. Today corner handles on shapes and stickies always keep proportions (`keepRatio` in `Canvas.tsx`).
-- [ ] Show a hover outline on the item under the cursor.
+- [x] Show `SelectionBar` for several items, with shared values and a "mixed" state when they differ.
+- [x] Draw one bounding box around a multi-selection, with handles that scale positions and sizes together. Connectors follow.
+- [x] Change resize to match FigJam: free by default, Shift keeps proportions, Alt resizes from the center. Today corner handles on shapes and stickies always keep proportions (`keepRatio` in `Canvas.tsx`).
+- [x] Show a hover outline on the item under the cursor.
 
 ### 1C. Stacking order, lock, group
 

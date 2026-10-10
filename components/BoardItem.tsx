@@ -9,17 +9,30 @@ import type { Handle, Item } from '@/lib/types';
 import { itemKind, paintOf, SHAPE_SIZE, STICKY_SIZE } from '@/lib/items';
 import { Markdown } from '@/lib/markdown';
 
-const HANDLE_POS: Record<Handle, { left: string; top: string; cursor: string }> =
-  {
-    n: { left: '50%', top: '0%', cursor: 'ns-resize' },
-    s: { left: '50%', top: '100%', cursor: 'ns-resize' },
-    e: { left: '100%', top: '50%', cursor: 'ew-resize' },
-    w: { left: '0%', top: '50%', cursor: 'ew-resize' },
-    ne: { left: '100%', top: '0%', cursor: 'nesw-resize' },
-    nw: { left: '0%', top: '0%', cursor: 'nwse-resize' },
-    se: { left: '100%', top: '100%', cursor: 'nwse-resize' },
-    sw: { left: '0%', top: '100%', cursor: 'nesw-resize' },
-  };
+export const HANDLE_POS: Record<
+  Handle,
+  { left: string; top: string; cursor: string }
+> = {
+  n: { left: '50%', top: '0%', cursor: 'ns-resize' },
+  s: { left: '50%', top: '100%', cursor: 'ns-resize' },
+  e: { left: '100%', top: '50%', cursor: 'ew-resize' },
+  w: { left: '0%', top: '50%', cursor: 'ew-resize' },
+  ne: { left: '100%', top: '0%', cursor: 'nesw-resize' },
+  nw: { left: '0%', top: '0%', cursor: 'nwse-resize' },
+  se: { left: '100%', top: '100%', cursor: 'nwse-resize' },
+  sw: { left: '0%', top: '100%', cursor: 'nesw-resize' },
+};
+
+export const BOX_HANDLES: Handle[] = [
+  'n',
+  's',
+  'e',
+  'w',
+  'ne',
+  'nw',
+  'se',
+  'sw',
+];
 
 function handlesFor(it: Item): Handle[] {
   const kind = itemKind(it);
@@ -187,6 +200,8 @@ function setCaret(el: HTMLElement, offset: number) {
 interface Props {
   item: Item;
   selected: boolean;
+  hovered?: boolean;
+  showHandles?: boolean;
   editing: boolean;
   flashing: boolean;
   offset: { x: number; y: number } | null;
@@ -201,7 +216,12 @@ export default function BoardItem(props: Props) {
   const kind = itemKind(it);
   const fill = paintOf(it);
   const off = props.offset;
-  const handles = props.selected && !props.editing ? handlesFor(it) : [];
+  const handles =
+    props.selected &&
+    !props.editing &&
+    props.showHandles !== false
+      ? handlesFor(it)
+      : [];
   const w =
     it.w ??
     (kind === 'sticky' ? STICKY_SIZE : kind === 'shape' ? SHAPE_SIZE : undefined);
@@ -245,7 +265,7 @@ export default function BoardItem(props: Props) {
         'absolute text-sm leading-snug wrap-anywhere' +
         (kind === 'text' ? ' w-max min-w-7 px-2.5 py-1.5' : '') +
         (kind === 'text' && !it.w ? ' max-w-80' : '') +
-        (kind === 'text' && !props.selected
+        (kind === 'text' && !props.selected && !props.hovered
           ? ' hover:ring-1 hover:ring-sky-300'
           : '') +
         (kind === 'sticky'
@@ -302,14 +322,20 @@ export default function BoardItem(props: Props) {
         )}
         {body}
       </div>
-      {props.selected && (
+      {props.selected ? (
         <div
           className={
             'pointer-events-none absolute inset-0 ring-[1.5px] ring-sky-700 ' +
             round
           }
         />
-      )}
+      ) : props.hovered ? (
+        <div
+          className={
+            'pointer-events-none absolute inset-0 ring-1 ring-sky-300 ' + round
+          }
+        />
+      ) : null}
       {handles.map((h) => {
         const pos = HANDLE_POS[h];
         return (

@@ -1,21 +1,18 @@
 import type { Item } from '@/lib/types';
-import { boundsOf, isBox, type Rect } from '@/lib/items';
+import { boundsOf, isBox, mapBox, type Rect } from '@/lib/items';
+import type { ResizeLive } from './types';
 
 export function liveRects(
   items: Item[],
   dragging: { ids: Set<string>; x: number; y: number } | null,
-  resize: Rect & { id: string } | null,
+  resize: ResizeLive | null,
 ): Map<string, Rect> {
   const m = new Map<string, Rect>();
+  const scaled = resize ? new Set(resize.ids) : null;
   for (const it of items) {
     if (!isBox(it)) continue;
-    if (resize && resize.id === it.id) {
-      m.set(it.id, {
-        x: resize.x,
-        y: resize.y,
-        w: resize.w,
-        h: resize.h,
-      });
+    if (resize && scaled?.has(it.id)) {
+      m.set(it.id, mapBox(resize.from, resize.to, boundsOf(it)));
       continue;
     }
     const box = boundsOf(it);

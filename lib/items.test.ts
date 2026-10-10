@@ -3,7 +3,9 @@ import {
   applyResize,
   boundsOf,
   forgetSize,
+  mapBox,
   rememberSize,
+  scaleItem,
   STICKY_SIZE,
 } from './items';
 import type { Item } from './types';
@@ -57,6 +59,61 @@ describe('applyResize', () => {
 
   it('does not shrink below the minimum size', () => {
     expect(applyResize(start, 'e', -200, 0, false).w).toBe(40);
+  });
+
+  it('grows from the center when fromCenter is set', () => {
+    expect(applyResize(start, 'e', 10, 0, false, 40, true)).toEqual({
+      x: -10,
+      y: 0,
+      w: 120,
+      h: 80,
+    });
+    expect(applyResize(start, 'se', 10, 8, false, 40, true)).toEqual({
+      x: -10,
+      y: -8,
+      w: 120,
+      h: 96,
+    });
+  });
+
+  it('keeps ratio from the center on a corner handle', () => {
+    expect(applyResize(start, 'se', 20, 5, true, 40, true)).toEqual({
+      x: -20,
+      y: -16,
+      w: 140,
+      h: 112,
+    });
+  });
+});
+
+describe('mapBox', () => {
+  it('scales a box about the union origin', () => {
+    const from = { x: 0, y: 0, w: 200, h: 100 };
+    const to = { x: 0, y: 0, w: 400, h: 100 };
+    expect(mapBox(from, to, { x: 50, y: 10, w: 40, h: 20 })).toEqual({
+      x: 100,
+      y: 10,
+      w: 80,
+      h: 20,
+    });
+  });
+});
+
+describe('scaleItem', () => {
+  it('scales a free connector end and leaves attached ends', () => {
+    const c = box({
+      id: 'c1',
+      kind: 'connector',
+      start: { itemId: 'n', side: 'e' },
+      end: { x: 50, y: 20 },
+    });
+    const next = scaleItem(
+      c,
+      { x: 0, y: 0, w: 100, h: 40 },
+      { x: 0, y: 0, w: 200, h: 40 },
+    );
+    expect(next.start).toEqual({ itemId: 'n', side: 'e' });
+    expect(next.end).toEqual({ x: 100, y: 20 });
   });
 });
 

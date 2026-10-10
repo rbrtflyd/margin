@@ -1,20 +1,39 @@
 import type { Handle } from '@/lib/types';
-import { applyResize, itemKind, storedRect } from '@/lib/items';
+import {
+  applyResize,
+  isBox,
+  storedRect,
+  unionRect,
+  type Rect,
+} from '@/lib/items';
 import type { Drag, InteractionCtx } from './types';
+
+function origBox(
+  ctx: InteractionCtx,
+  ids: string[],
+): Rect | null {
+  const items = ctx.propsRef.current.items;
+  const rects = ctx.currentRects();
+  const boxes: Rect[] = [];
+  for (const id of ids) {
+    const it = items.find((i) => i.id === id);
+    if (!it || !isBox(it)) continue;
+    boxes.push(rects.get(id) ?? storedRect(it));
+  }
+  return unionRect(boxes);
+}
 
 export function startResize(
   ctx: InteractionCtx,
-  id: string,
+  ids: string[],
   handle: Handle,
   e: { clientX: number; clientY: number },
 ): Drag | null {
-  const it = ctx.propsRef.current.items.find((i) => i.id === id);
-  if (!it) return null;
-  const box = ctx.currentRects().get(id) ?? storedRect(it);
-  const kind = itemKind(it);
+  const box = origBox(ctx, ids);
+  if (!box) return null;
   return {
     kind: 'resize',
-    id,
+    ids,
     handle,
     sx: e.clientX,
     sy: e.clientY,
@@ -22,9 +41,24 @@ export function startResize(
     y: box.y,
     w: box.w,
     h: box.h,
-    keepRatio: (kind === 'shape' || kind === 'sticky') && handle.length === 2,
     moved: false,
   };
+}
+
+function liveBox(
+  d: Extract<Drag, { kind: 'resize' }>,
+  e: { clientX: number; clientY: number; shiftKey: boolean; altKey: boolean },
+  k: number,
+): Rect {
+  return applyResize(
+    { x: d.x, y: d.y, w: d.w, h: d.h },
+    d.handle,
+    (e.clientX - d.sx) / k,
+    (e.clientY - d.sy) / k,
+    e.shiftKey,
+    undefined,
+    e.altKey,
+  );
 }
 
 export function moveResize(
@@ -32,17 +66,9 @@ export function moveResize(
   d: Extract<Drag, { kind: 'resize' }>,
   e: PointerEvent,
 ) {
-  const dx = e.clientX - d.sx;
-  const dy = e.clientY - d.sy;
-  const k = ctx.viewRef.current.k;
-  const box = applyResize(
-    { x: d.x, y: d.y, w: d.w, h: d.h },
-    d.handle,
-    dx / k,
-    dy / k,
-    d.keepRatio,
-  );
-  ctx.setResize({ id: d.id, ...box });
+  const from = { x: d.x, y: d.y, w: d.w, h: d.h };
+  const to = liveBox(d, e, ctx.viewRef.current.k);
+  ctx.setResize({ ids: d.ids, from, to });
 }
 
 export function endResize(
@@ -50,14 +76,12 @@ export function endResize(
   d: Extract<Drag, { kind: 'resize' }>,
   e: PointerEvent,
 ) {
-  const k = ctx.viewRef.current.k;
-  const box = applyResize(
-    { x: d.x, y: d.y, w: d.w, h: d.h },
-    d.handle,
-    (e.clientX - d.sx) / k,
-    (e.clientY - d.sy) / k,
-    d.keepRatio,
-  );
-  if (d.moved) ctx.propsRef.current.onResize(d.id, box, d.handle);
+  const from = { x: d.x, y: d.y, w: d.w, h: d.h };
+  const to = liveBox(d, e, ctx.viewRef.current.k);
+  const p = ctx.propsRef.current;
+  if (d.moved) {
+    if (d.ids.length === 1) p.onResize(d.ids[0], to, d.handle);
+    else p.onResizeAll(d.ids, from, to);
+  }
   ctx.setResize(null);
 }

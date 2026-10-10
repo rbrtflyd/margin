@@ -32,6 +32,12 @@ export type CreateDraft = {
 
 export type { Pt, Rect };
 
+export type ResizeLive = {
+  ids: string[];
+  from: Rect;
+  to: Rect;
+};
+
 export type Drag =
   | {
       kind: 'pan';
@@ -74,7 +80,7 @@ export type Drag =
     }
   | {
       kind: 'resize';
-      id: string;
+      ids: string[];
       handle: Handle;
       sx: number;
       sy: number;
@@ -82,7 +88,6 @@ export type Drag =
       y: number;
       w: number;
       h: number;
-      keepRatio: boolean;
       moved: boolean;
     }
   | {
@@ -102,7 +107,9 @@ export type CanvasProps = {
   onDuplicateMove(ids: string[], dx: number, dy: number): void;
   onCreate(draft: CreateDraft): void;
   onResize(id: string, box: Rect, handle: Handle): void;
+  onResizeAll(ids: string[], from: Rect, to: Rect): void;
   onPatch(id: string, patch: Partial<Item>): void;
+  onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
 };
 
 export type InteractionCtx = {
@@ -121,7 +128,7 @@ export type InteractionCtx = {
   setDraftLine: Dispatch<
     SetStateAction<{ start: Anchor; end: Anchor } | null>
   >;
-  setResize: Dispatch<SetStateAction<(Rect & { id: string }) | null>>;
+  setResize: Dispatch<SetStateAction<ResizeLive | null>>;
   setEndDraft: Dispatch<
     SetStateAction<{
       id: string;

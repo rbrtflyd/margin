@@ -19,8 +19,10 @@ import {
   forgetSize,
   isBox,
   itemKind,
+  mapPoint,
   rememberSize,
   storedRect,
+  unionRect,
   type Rect,
 } from '@/lib/items';
 import {
@@ -32,9 +34,14 @@ import {
   resolveAnchor,
   type Pt,
 } from '@/lib/connectors';
-import BoardItem, { Editor } from './BoardItem';
+import BoardItem, { BOX_HANDLES, Editor, HANDLE_POS } from './BoardItem';
 import SelectionBar from './SelectionBar';
-import type { CreateDraft, Drag, InteractionCtx } from './canvas/types';
+import type {
+  CreateDraft,
+  Drag,
+  InteractionCtx,
+  ResizeLive,
+} from './canvas/types';
 import { isEditable } from './canvas/types';
 import { liveRects } from './canvas/liveRects';
 import { startPan } from './canvas/pan';
@@ -72,7 +79,9 @@ interface Props {
   onDuplicateMove(ids: string[], dx: number, dy: number): void;
   onCreate(draft: CreateDraft): void;
   onResize(id: string, box: Rect, handle: Handle): void;
+  onResizeAll(ids: string[], from: Rect, to: Rect): void;
   onPatch(id: string, patch: Partial<Item>): void;
+  onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onEditStart(id: string): void;
   onEditCommit(id: string, text: string): void;
   onViewChange(v: View): void;
@@ -116,7 +125,8 @@ export default function Canvas(props: Props) {
     start: Anchor;
     end: Anchor;
   } | null>(null);
-  const [resize, setResize] = useState<(Rect & { id: string }) | null>(null);
+  const [resize, setResize] = useState<ResizeLive | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const resizeRef = useRef(resize);
   resizeRef.current = resize;
   const [endDraft, setEndDraft] = useState<{
@@ -438,12 +448,45 @@ export default function Canvas(props: Props) {
         }
       }
       const d = ctx.dragRef.current;
-      if (!d) return;
+      if (!d) {
+        const inside = !!(
+          r &&
+          e.clientX >= r.left &&
+          e.clientX <= r.right &&
+          e.clientY >= r.top &&
+          e.clientY <= r.bottom
+        );
+        if (!inside) {
+          setHoverId(null);
+          return;
+        }
+        const w = ctx.toWorld(e.clientX, e.clientY);
+        const items = ctx.propsRef.current.items;
+        const selected = ctx.propsRef.current.selected;
+        let hit: string | null = null;
+        for (let i = items.length - 1; i >= 0; i--) {
+          const it = items[i];
+          if (!isBox(it)) continue;
+          const b = boundsOf(it);
+          if (
+            w.x >= b.x &&
+            w.x <= b.x + b.w &&
+            w.y >= b.y &&
+            w.y <= b.y + b.h
+          ) {
+            hit = selected.has(it.id) ? null : it.id;
+            break;
+          }
+        }
+        setHoverId(hit);
+        return;
+      }
       const dx = e.clientX - ('sx' in d ? d.sx : 0);
       const dy = e.clientY - ('sy' in d ? d.sy : 0);
       if (!d.moved && Math.hypot(dx, dy) < 3 && d.kind !== 'connector' && d.kind !== 'endpoint')
         return;
       d.moved = true;
+      setHoverId(null);
       moveDrag(ctx, d, e);
     };
 
@@ -500,7 +543,15 @@ export default function Canvas(props: Props) {
     handle: Handle,
     e: ReactPointerEvent,
   ) {
-    const next = startResize(ctxRef.current, id, handle, e);
+    const next = startResize(ctxRef.current, [id], handle, e);
+    if (next) dragRef.current = next;
+  }
+
+  function onUnionResizeDown(handle: Handle, e: ReactPointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    const ids = Array.from(propsRef.current.selected);
+    const next = startResize(ctxRef.current, ids, handle, e);
     if (next) dragRef.current = next;
   }
 
@@ -567,6 +618,7 @@ export default function Canvas(props: Props) {
     }
 
     if (itemId) {
+      setHoverId(null);
       const next = startMove(ctx, e, itemId);
       if (next) dragRef.current = next;
       return;
@@ -612,24 +664,27 @@ export default function Canvas(props: Props) {
             ? ' cursor-crosshair'
             : '';
 
-  const soleId =
-    shown.size === 1 && !props.editingId ? Array.from(shown)[0] : null;
-  const sole = soleId
-    ? props.items.find((i) => i.id === soleId)
-    : undefined;
+  const selectedItems = props.items.filter((i) => shown.has(i.id));
+  const union = unionRect(
+    selectedItems.filter(isBox).map((i) => rects.get(i.id) ?? storedRect(i)),
+  );
   let barLeft = 0;
   let barTop = 0;
-  if (sole) {
-    if (itemKind(sole) === 'connector') {
-      const s = resolveAnchor(sole.start, rects, { x: sole.x, y: sole.y });
-      const e = resolveAnchor(sole.end, rects, { x: sole.x, y: sole.y });
-      const mid = alongPath(connectorPoints(s, e, sole.route ?? 'straight'));
-      barLeft = mid.x * view.k + view.x;
-      barTop = mid.y * view.k + view.y - 10;
-    } else {
-      const box = rects.get(sole.id) ?? storedRect(sole);
-      barLeft = (box.x + box.w / 2) * view.k + view.x;
-      barTop = box.y * view.k + view.y - 8;
+  if (shown.size && !props.editingId) {
+    if (union) {
+      barLeft = (union.x + union.w / 2) * view.k + view.x;
+      barTop = union.y * view.k + view.y - 8;
+    } else if (shown.size === 1) {
+      const sole = selectedItems[0];
+      if (sole && itemKind(sole) === 'connector') {
+        const s = resolveAnchor(sole.start, rects, { x: sole.x, y: sole.y });
+        const e = resolveAnchor(sole.end, rects, { x: sole.x, y: sole.y });
+        const mid = alongPath(
+          connectorPoints(s, e, sole.route ?? 'straight'),
+        );
+        barLeft = mid.x * view.k + view.x;
+        barTop = mid.y * view.k + view.y - 10;
+      }
     }
   }
 
@@ -658,6 +713,14 @@ export default function Canvas(props: Props) {
         };
       }
     }
+    if (resize && resize.ids.includes(it.id)) {
+      if (startA && !isAttach(startA)) {
+        start = { p: mapPoint(resize.from, resize.to, startA), side: null };
+      }
+      if (endA && !isAttach(endA)) {
+        end = { p: mapPoint(resize.from, resize.to, endA), side: null };
+      }
+    }
     const pts = connectorPoints(start, end, it.route ?? 'straight');
     return { pts, start, end, mid: alongPath(pts) };
   }
@@ -683,6 +746,7 @@ export default function Canvas(props: Props) {
         backgroundPosition: `${view.x}px ${view.y}px`,
       }}
       onPointerDown={onPointerDown}
+      onPointerLeave={() => setHoverId(null)}
       onDoubleClick={onDoubleClick}
       onContextMenu={(e) => {
         if (!isEditable(e.target)) e.preventDefault();
@@ -812,13 +876,13 @@ export default function Canvas(props: Props) {
           />
         )}
         {nodes.map((it) => {
-          const previewBox =
-            resize && resize.id === it.id ? resize : null;
-          const drawn = previewBox
-            ? { ...it, x: previewBox.x, y: previewBox.y, w: previewBox.w, h: previewBox.h }
+          const liveBox =
+            resize && resize.ids.includes(it.id) ? rects.get(it.id) : null;
+          const drawn = liveBox
+            ? { ...it, x: liveBox.x, y: liveBox.y, w: liveBox.w, h: liveBox.h }
             : it;
           const off =
-            dragging && dragging.ids.has(it.id) && !previewBox
+            dragging && dragging.ids.has(it.id) && !liveBox
               ? dragging
               : null;
           return (
@@ -826,6 +890,8 @@ export default function Canvas(props: Props) {
               key={it.id}
               item={drawn}
               selected={shown.has(it.id)}
+              hovered={hoverId === it.id}
+              showHandles={shown.size === 1}
               editing={props.editingId === it.id}
               flashing={flash.has(it.id)}
               offset={off}
@@ -838,6 +904,35 @@ export default function Canvas(props: Props) {
             />
           );
         })}
+        {shown.size > 1 && union && !props.editingId && (
+          <div
+            className="pointer-events-none absolute"
+            style={{
+              left: union.x,
+              top: union.y,
+              width: union.w,
+              height: union.h,
+            }}>
+            <div className="absolute inset-0 ring-[1.5px] ring-sky-700" />
+            {BOX_HANDLES.map((h) => {
+              const pos = HANDLE_POS[h];
+              return (
+                <div
+                  key={h}
+                  data-handle={h}
+                  className="pointer-events-auto absolute z-10 size-1.5 rounded-[1px] bg-white ring-1 ring-sky-700"
+                  style={{
+                    left: pos.left,
+                    top: pos.top,
+                    cursor: pos.cursor,
+                    transform: `translate(-50%, -50%) scale(${1 / view.k})`,
+                  }}
+                  onPointerDown={(e) => onUnionResizeDown(h, e)}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
       {marquee && (
         <div
@@ -850,15 +945,18 @@ export default function Canvas(props: Props) {
           }}
         />
       )}
-      {sole && !dragging && !resize && !draftLine && (
-        <SelectionBar
-          item={sole}
-          left={barLeft}
-          top={barTop}
-          onFill={(fill) => props.onPatch(sole.id, { fill })}
-          onRoute={(route) => props.onPatch(sole.id, { route })}
-        />
-      )}
+      {shown.size > 0 &&
+        !props.editingId &&
+        !dragging &&
+        !resize &&
+        !draftLine && (
+          <SelectionBar
+            items={selectedItems}
+            left={barLeft}
+            top={barTop}
+            onPatchAll={props.onPatchAll}
+          />
+        )}
     </div>
   );
 }

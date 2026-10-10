@@ -107,18 +107,32 @@ export function applyResize(
   dy: number,
   keepRatio: boolean,
   min = MIN_SIZE,
+  fromCenter = false,
 ): Rect {
   const orig = box;
   let { x, y, w, h } = box;
-  if (handle.includes('e')) w = orig.w + dx;
-  if (handle.includes('w')) {
-    w = orig.w - dx;
-    x = orig.x + dx;
-  }
-  if (handle.includes('s')) h = orig.h + dy;
-  if (handle.includes('n')) {
-    h = orig.h - dy;
-    y = orig.y + dy;
+  if (fromCenter) {
+    if (handle.includes('e') || handle.includes('w')) {
+      const dw = handle.includes('e') ? dx : -dx;
+      w = orig.w + 2 * dw;
+      x = orig.x - dw;
+    }
+    if (handle.includes('s') || handle.includes('n')) {
+      const dh = handle.includes('s') ? dy : -dy;
+      h = orig.h + 2 * dh;
+      y = orig.y - dh;
+    }
+  } else {
+    if (handle.includes('e')) w = orig.w + dx;
+    if (handle.includes('w')) {
+      w = orig.w - dx;
+      x = orig.x + dx;
+    }
+    if (handle.includes('s')) h = orig.h + dy;
+    if (handle.includes('n')) {
+      h = orig.h - dy;
+      y = orig.y + dy;
+    }
   }
   if (keepRatio && handle.length === 2 && orig.w > 0 && orig.h > 0) {
     const sx = w / orig.w;
@@ -126,18 +140,79 @@ export function applyResize(
     const s = Math.abs(sx) > Math.abs(sy) ? sx : sy;
     w = orig.w * s;
     h = orig.h * s;
-    if (handle.includes('w')) x = orig.x + orig.w - w;
-    if (handle.includes('n')) y = orig.y + orig.h - h;
+    if (fromCenter) {
+      x = orig.x + orig.w / 2 - w / 2;
+      y = orig.y + orig.h / 2 - h / 2;
+    } else {
+      if (handle.includes('w')) x = orig.x + orig.w - w;
+      if (handle.includes('n')) y = orig.y + orig.h - h;
+    }
   }
   if (w < min) {
-    if (handle.includes('w')) x = orig.x + orig.w - min;
+    if (fromCenter) x = orig.x + orig.w / 2 - min / 2;
+    else if (handle.includes('w')) x = orig.x + orig.w - min;
     w = min;
   }
   if (h < min) {
-    if (handle.includes('n')) y = orig.y + orig.h - min;
+    if (fromCenter) y = orig.y + orig.h / 2 - min / 2;
+    else if (handle.includes('n')) y = orig.y + orig.h - min;
     h = min;
   }
   return { x, y, w, h };
+}
+
+export function unionRect(rects: Rect[]): Rect | null {
+  if (!rects.length) return null;
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const b of rects) {
+    x0 = Math.min(x0, b.x);
+    y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.w);
+    y1 = Math.max(y1, b.y + b.h);
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+export function mapPoint(
+  from: Rect,
+  to: Rect,
+  p: { x: number; y: number },
+): { x: number; y: number } {
+  const sx = from.w ? to.w / from.w : 1;
+  const sy = from.h ? to.h / from.h : 1;
+  return {
+    x: to.x + (p.x - from.x) * sx,
+    y: to.y + (p.y - from.y) * sy,
+  };
+}
+
+export function mapBox(from: Rect, to: Rect, box: Rect): Rect {
+  const a = mapPoint(from, to, { x: box.x, y: box.y });
+  const b = mapPoint(from, to, { x: box.x + box.w, y: box.y + box.h });
+  return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+}
+
+/** Scale a box or a connector's free ends from `from` onto `to`. */
+export function scaleItem(i: Item, from: Rect, to: Rect): Item {
+  if (itemKind(i) === 'connector') {
+    const mapAnchor = (a: Item['start']) => {
+      if (!a || 'itemId' in a) return a;
+      const p = mapPoint(from, to, a);
+      return { x: Math.round(p.x), y: Math.round(p.y) };
+    };
+    return { ...i, start: mapAnchor(i.start), end: mapAnchor(i.end) };
+  }
+  const b = mapBox(from, to, boundsOf(i));
+  return {
+    ...i,
+    x: Math.round(b.x),
+    y: Math.round(b.y),
+    w: Math.round(b.w),
+    h: Math.round(b.h),
+  };
 }
 
 export function compactItem(i: Item): Item {

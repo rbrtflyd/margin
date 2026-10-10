@@ -17,7 +17,7 @@ import type {
   View,
 } from '@/lib/types';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
-import { compactItem, itemKind, type Rect } from '@/lib/items';
+import { compactItem, itemKind, scaleItem, type Rect } from '@/lib/items';
 import { detachAnchor, nodeRects } from '@/lib/connectors';
 import { nextHistory } from '@/lib/history';
 import {
@@ -516,6 +516,13 @@ export default function Margin({ user }: { user: User | null }) {
     );
   };
 
+  const resizeAll = (ids: string[], from: Rect, to: Rect) => {
+    const set = new Set(ids);
+    commitItems((items) =>
+      items.map((i) => (set.has(i.id) ? scaleItem(i, from, to) : i)),
+    );
+  };
+
   const patchItem = (id: string, patch: Partial<Item>) => {
     commitItems((items) =>
       items.map((i) => {
@@ -525,6 +532,26 @@ export default function Margin({ user }: { user: User | null }) {
           setStickyFill(next.fill);
         return next;
       }),
+    );
+  };
+
+  const patchSelected = (patch: Partial<Item>, coalesceKey?: string) => {
+    const sel = selectedRef.current;
+    if (!sel.size) return;
+    commitItems(
+      (items) =>
+        items.map((i) => {
+          if (!sel.has(i.id)) return i;
+          const kind = itemKind(i);
+          if (patch.fill && kind !== 'sticky' && kind !== 'shape') return i;
+          if (patch.route && kind !== 'connector') return i;
+          const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
+          if (next.fill && next.fill !== 'none' && kind === 'sticky')
+            setStickyFill(next.fill);
+          return next;
+        }),
+      true,
+      coalesceKey,
     );
   };
 
@@ -883,7 +910,9 @@ export default function Margin({ user }: { user: User | null }) {
         onDuplicateMove={duplicateItems}
         onCreate={createItem}
         onResize={resizeItem}
+        onResizeAll={resizeAll}
         onPatch={patchItem}
+        onPatchAll={patchSelected}
         onEditStart={startEdit}
         onEditCommit={commitEdit}
         onViewChange={(v: View) => patchBoard(board.id, { view: v })}
