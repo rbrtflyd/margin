@@ -8,16 +8,25 @@ import type {
 } from 'react';
 import type {
   Anchor,
+  Fill,
   Handle,
   Item,
   Tool,
   View,
 } from '@/lib/types';
-import { itemKind, storedRect, type Rect } from '@/lib/items';
+import {
+  boundsOf,
+  forgetSize,
+  itemKind,
+  rememberSize,
+  storedRect,
+  type Rect,
+} from '@/lib/items';
 import {
   alongPath,
   arrowHead,
   connectorPoints,
+  isAttach,
   pathD,
   resolveAnchor,
   type Pt,
@@ -87,6 +96,8 @@ export default function Canvas(props: Props) {
     x: number;
     y: number;
   } | null>(null);
+  const draggingRef = useRef(dragging);
+  draggingRef.current = dragging;
   const [marquee, setMarquee] = useState<{
     x0: number;
     y0: number;
@@ -104,6 +115,8 @@ export default function Canvas(props: Props) {
     end: Anchor;
   } | null>(null);
   const [resize, setResize] = useState<(Rect & { id: string }) | null>(null);
+  const resizeRef = useRef(resize);
+  resizeRef.current = resize;
   const [endDraft, setEndDraft] = useState<{
     id: string;
     which: 'start' | 'end';
@@ -112,6 +125,37 @@ export default function Canvas(props: Props) {
 
   const dragRef = useRef<Drag | null>(null);
   const els = useRef(new Map<string, Element>());
+  const [, setMeasureTick] = useState(0);
+  const roRef = useRef<ResizeObserver | null>(null);
+  if (!roRef.current && typeof ResizeObserver !== 'undefined') {
+    roRef.current = new ResizeObserver((entries) => {
+      let changed = false;
+      for (const entry of entries) {
+        const el = entry.target;
+        if (!(el instanceof HTMLElement)) continue;
+        const id = el.dataset.item;
+        if (!id) continue;
+        if (rememberSize(id, el.offsetWidth, el.offsetHeight)) changed = true;
+      }
+      if (changed) setMeasureTick((n) => n + 1);
+    });
+  }
+
+  function watchEl(id: string, el: Element | null) {
+    const ro = roRef.current;
+    const prev = els.current.get(id);
+    if (prev && ro) ro.unobserve(prev);
+    if (el) {
+      els.current.set(id, el);
+      if (el instanceof HTMLElement) {
+        rememberSize(id, el.offsetWidth, el.offsetHeight);
+        ro?.observe(el);
+      }
+    } else {
+      els.current.delete(id);
+      forgetSize(id);
+    }
+  }
   const pointerWorld = useRef<Pt | null>(null);
   const touches = useRef(new Map<number, Pt>());
   const pinch = useRef<{ d0: number; k0: number } | null>(null);
@@ -144,9 +188,8 @@ export default function Canvas(props: Props) {
   function currentRects() {
     return liveRects(
       propsRef.current.items,
-      els.current,
-      dragging,
-      resize,
+      draggingRef.current,
+      resizeRef.current,
     );
   }
 
@@ -178,7 +221,7 @@ export default function Canvas(props: Props) {
       setView({ x: r.width / 2 - 140, y: r.height * 0.4, k: 1 });
       return;
     }
-    const rects = liveRects(items, els.current, null, null);
+    const rects = liveRects(items, null, null);
     let x0 = Infinity,
       y0 = Infinity,
       x1 = -Infinity,
@@ -237,6 +280,13 @@ export default function Canvas(props: Props) {
   }, [view.k]);
 
   useEffect(() => {
+    return () => {
+      roRef.current?.disconnect();
+      roRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     const api: CanvasApi = {
       center: () => {
         const r = rootRect();
@@ -255,7 +305,7 @@ export default function Canvas(props: Props) {
         const it = propsRef.current.items.find((i) => i.id === id);
         if (!it) return null;
         if (itemKind(it) === 'connector') {
-          const rects = liveRects(propsRef.current.items, els.current, null, null);
+          const rects = liveRects(propsRef.current.items, null, null);
           const s = resolveAnchor(it.start, rects, { x: it.x, y: it.y });
           const e = resolveAnchor(it.end, rects, { x: it.x, y: it.y });
           const mid = alongPath(
@@ -263,13 +313,7 @@ export default function Canvas(props: Props) {
           );
           return { x: mid.x, y: mid.y, w: 0, h: 0 };
         }
-        const el = els.current.get(id);
-        return {
-          x: it.x,
-          y: it.y,
-          w: el instanceof HTMLElement ? el.offsetWidth : storedRect(it).w,
-          h: el instanceof HTMLElement ? el.offsetHeight : storedRect(it).h,
-        };
+        return boundsOf(it);
       },
       panTo: (p: Pt) => {
         const r = rootRect();
@@ -553,7 +597,7 @@ export default function Canvas(props: Props) {
   const flash = new Set(props.flash);
   const nodes = props.items.filter((it) => itemKind(it) !== 'connector');
   const lines = props.items.filter((it) => itemKind(it) === 'connector');
-  const rects = liveRects(props.items, els.current, dragging, resize);
+  const rects = liveRects(props.items, dragging, resize);
   const cursor =
     panning
       ? ' cursor-grabbing'
@@ -595,8 +639,22 @@ export default function Canvas(props: Props) {
       endDraft && endDraft.id === it.id && endDraft.which === 'end'
         ? endDraft.anchor
         : it.end;
-    const start = resolveAnchor(startA, rects, { x: it.x, y: it.y });
-    const end = resolveAnchor(endA, rects, { x: it.x, y: it.y });
+    let start = resolveAnchor(startA, rects, { x: it.x, y: it.y });
+    let end = resolveAnchor(endA, rects, { x: it.x, y: it.y });
+    if (dragging && dragging.ids.has(it.id)) {
+      if (startA && !isAttach(startA)) {
+        start = {
+          p: { x: start.p.x + dragging.x, y: start.p.y + dragging.y },
+          side: start.side,
+        };
+      }
+      if (endA && !isAttach(endA)) {
+        end = {
+          p: { x: end.p.x + dragging.x, y: end.p.y + dragging.y },
+          side: end.side,
+        };
+      }
+    }
     const pts = connectorPoints(start, end, it.route ?? 'straight');
     return { pts, start, end, mid: alongPath(pts) };
   }
@@ -646,10 +704,7 @@ export default function Canvas(props: Props) {
               <g
                 key={it.id}
                 data-item={it.id}
-                ref={(el) => {
-                  if (el) els.current.set(it.id, el);
-                  else els.current.delete(it.id);
-                }}>
+                ref={(el) => watchEl(it.id, el)}>
                 <path
                   d={d}
                   fill="none"
@@ -776,10 +831,7 @@ export default function Canvas(props: Props) {
                 propsRef.current.onEditCommit(id, text)
               }
               onResizeDown={onResizeDown}
-              register={(id, el) => {
-                if (el) els.current.set(id, el);
-                else els.current.delete(id);
-              }}
+              register={watchEl}
             />
           );
         })}

@@ -64,14 +64,18 @@ export function resolveAnchor(
   return { p: { x: anchor.x, y: anchor.y }, side: null };
 }
 
-export function snapAnchor(p: Pt, rects: Map<string, Rect>): Anchor {
+export function snapAnchor(
+  p: Pt,
+  rects: Map<string, Rect>,
+  snap = SNAP,
+): Anchor {
   let best: { score: number; itemId: string; side: Side } | null = null;
   for (const [id, r] of rects) {
     const inside =
-      p.x >= r.x - SNAP &&
-      p.x <= r.x + r.w + SNAP &&
-      p.y >= r.y - SNAP &&
-      p.y <= r.y + r.h + SNAP;
+      p.x >= r.x - snap &&
+      p.x <= r.x + r.w + snap &&
+      p.y >= r.y - snap &&
+      p.y <= r.y + r.h + snap;
     if (!inside) continue;
     const side = nearestSide(r, p);
     const q = sidePoint(r, side);

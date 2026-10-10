@@ -10,7 +10,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | --- | --- | --- | --- |
 | 0A | Save one board at a time | none | done |
 | 0B | Split `Canvas.tsx` into interaction modules | none | done |
-| 0C | Bounds layer and canvas bug fixes | 0B | open |
+| 0C | Bounds layer and canvas bug fixes | 0B | done |
 | 0D | Item schema v2 | none | open |
 | 0E | Geometry tests and undo coalescing | 0A | open |
 | 1A | Duplicate, nudge, copy and paste items | 0B | open |
@@ -93,11 +93,11 @@ Done when everything that works today still works: create each kind, select, Shi
 
 Touches: the modules from 0B, `lib/connectors.ts`, `lib/items.ts`.
 
-- [ ] Add one `boundsOf(item)` function. It uses the stored `w`/`h` when they're set, and the measured size otherwise (text boxes that size to their contents), cached with a `ResizeObserver`.
-- [ ] Move marquee hit-testing to `boundsOf` instead of calling `getBoundingClientRect` on every item.
-- [ ] Fix: when you group-drag items, a connector end that isn't attached to anything doesn't move in the preview.
-- [ ] Fix: `SNAP = 28` in `lib/connectors.ts` is in world units, so it's about 3px on screen at 10% zoom and 112px at 400%. Make it a screen-pixel distance, `SNAP / view.k`.
-- [ ] Fix: `currentRects` inside the `[]`-deps effect captures stale `dragging`/`resize` state.
+- [x] Add one `boundsOf(item)` function. It uses the stored `w`/`h` when they're set, and the measured size otherwise (text boxes that size to their contents), cached with a `ResizeObserver`.
+- [x] Move marquee hit-testing to `boundsOf` instead of calling `getBoundingClientRect` on every item.
+- [x] Fix: when you group-drag items, a connector end that isn't attached to anything doesn't move in the preview.
+- [x] Fix: `SNAP = 28` in `lib/connectors.ts` is in world units, so it's about 3px on screen at 10% zoom and 112px at 400%. Make it a screen-pixel distance, `SNAP / view.k`.
+- [x] Fix: `currentRects` inside the `[]`-deps effect captures stale `dragging`/`resize` state.
 
 Done when snapping feels the same at every zoom level, and every selected item moves together during a drag.
 

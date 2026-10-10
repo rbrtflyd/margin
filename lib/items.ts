@@ -57,6 +57,32 @@ export function storedRect(it: Item): Rect {
   return { x: it.x, y: it.y, w: it.w ?? 160, h: it.h ?? 28 };
 }
 
+const measured = new Map<string, { w: number; h: number }>();
+
+/** Cache a measured world-unit size for items that size to their contents. */
+export function rememberSize(id: string, w: number, h: number): boolean {
+  const prev = measured.get(id);
+  if (prev && prev.w === w && prev.h === h) return false;
+  measured.set(id, { w, h });
+  return true;
+}
+
+export function forgetSize(id: string) {
+  measured.delete(id);
+}
+
+/** World-unit box. Uses stored `w`/`h` when set, else the last measured size. */
+export function boundsOf(item: Item): Rect {
+  const fallback = storedRect(item);
+  const m = measured.get(item.id);
+  return {
+    x: item.x,
+    y: item.y,
+    w: item.w ?? m?.w ?? fallback.w,
+    h: item.h ?? m?.h ?? fallback.h,
+  };
+}
+
 export function applyResize(
   box: Rect,
   handle: Handle,

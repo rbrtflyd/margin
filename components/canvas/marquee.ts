@@ -1,3 +1,8 @@
+import { boundsOf, itemKind } from '@/lib/items';
+import {
+  connectorPoints,
+  resolveAnchor,
+} from '@/lib/connectors';
 import type { Drag, InteractionCtx } from './types';
 
 export function startMarquee(
@@ -14,6 +19,21 @@ export function startMarquee(
   };
 }
 
+function intersects(
+  box: { x: number; y: number; w: number; h: number },
+  left: number,
+  right: number,
+  top: number,
+  bottom: number,
+) {
+  return (
+    box.x + box.w >= left &&
+    box.x <= right &&
+    box.y + box.h >= top &&
+    box.y <= bottom
+  );
+}
+
 export function moveMarquee(
   ctx: InteractionCtx,
   d: Extract<Drag, { kind: 'marquee' }>,
@@ -27,16 +47,35 @@ export function moveMarquee(
     x1: e.clientX - r.left,
     y1: e.clientY - r.top,
   });
-  const left = Math.min(d.sx, e.clientX);
-  const right = Math.max(d.sx, e.clientX);
-  const top = Math.min(d.sy, e.clientY);
-  const bottom = Math.max(d.sy, e.clientY);
+  const a = ctx.toWorld(d.sx, d.sy);
+  const b = ctx.toWorld(e.clientX, e.clientY);
+  const left = Math.min(a.x, b.x);
+  const right = Math.max(a.x, b.x);
+  const top = Math.min(a.y, b.y);
+  const bottom = Math.max(a.y, b.y);
   const hits = new Set(d.base);
-  ctx.els.current.forEach((el, id) => {
-    const b = el.getBoundingClientRect();
-    if (b.right >= left && b.left <= right && b.bottom >= top && b.top <= bottom)
-      hits.add(id);
-  });
+  const rects = ctx.currentRects();
+  for (const it of ctx.propsRef.current.items) {
+    if (itemKind(it) === 'connector') {
+      const s = resolveAnchor(it.start, rects, { x: it.x, y: it.y });
+      const end = resolveAnchor(it.end, rects, { x: it.x, y: it.y });
+      const pts = connectorPoints(s, end, it.route ?? 'straight');
+      let x0 = Infinity,
+        y0 = Infinity,
+        x1 = -Infinity,
+        y1 = -Infinity;
+      for (const p of pts) {
+        x0 = Math.min(x0, p.x);
+        y0 = Math.min(y0, p.y);
+        x1 = Math.max(x1, p.x);
+        y1 = Math.max(y1, p.y);
+      }
+      if (intersects({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, left, right, top, bottom))
+        hits.add(it.id);
+      continue;
+    }
+    if (intersects(boundsOf(it), left, right, top, bottom)) hits.add(it.id);
+  }
   ctx.previewRef.current = hits;
   ctx.setPreview(hits);
 }

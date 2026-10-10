@@ -1,10 +1,18 @@
-import { snapAnchor } from '@/lib/connectors';
+import { SNAP, snapAnchor } from '@/lib/connectors';
 import type { Drag, InteractionCtx } from './types';
+
+function snap(ctx: InteractionCtx, world: { x: number; y: number }) {
+  return snapAnchor(
+    world,
+    ctx.currentRects(),
+    SNAP / ctx.viewRef.current.k,
+  );
+}
 
 export function startConnect(ctx: InteractionCtx, world: { x: number; y: number }): Drag {
   return {
     kind: 'connector',
-    start: snapAnchor(world, ctx.currentRects()),
+    start: snap(ctx, world),
     moved: false,
   };
 }
@@ -17,7 +25,7 @@ export function moveConnect(
   const w = ctx.toWorld(e.clientX, e.clientY);
   ctx.setDraftLine({
     start: d.start,
-    end: snapAnchor(w, ctx.currentRects()),
+    end: snap(ctx, w),
   });
 }
 
@@ -27,7 +35,7 @@ export function endConnect(
   e: PointerEvent,
 ) {
   const w = ctx.toWorld(e.clientX, e.clientY);
-  const end = snapAnchor(w, ctx.currentRects());
+  const end = snap(ctx, w);
   ctx.setDraftLine(null);
   if (!d.moved) return;
   const p = ctx.propsRef.current;

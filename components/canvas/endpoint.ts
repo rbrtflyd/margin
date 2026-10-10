@@ -1,5 +1,13 @@
-import { snapAnchor } from '@/lib/connectors';
+import { SNAP, snapAnchor } from '@/lib/connectors';
 import type { Drag, InteractionCtx } from './types';
+
+function snap(ctx: InteractionCtx, world: { x: number; y: number }) {
+  return snapAnchor(
+    world,
+    ctx.currentRects(),
+    SNAP / ctx.viewRef.current.k,
+  );
+}
 
 export function startEndpoint(
   itemId: string,
@@ -17,7 +25,7 @@ export function moveEndpoint(
   ctx.setEndDraft({
     id: d.id,
     which: d.which,
-    anchor: snapAnchor(w, ctx.currentRects()),
+    anchor: snap(ctx, w),
   });
 }
 
@@ -27,7 +35,7 @@ export function endEndpoint(
   e: PointerEvent,
 ) {
   const w = ctx.toWorld(e.clientX, e.clientY);
-  const anchor = snapAnchor(w, ctx.currentRects());
+  const anchor = snap(ctx, w);
   if (d.moved) {
     ctx.propsRef.current.onPatch(
       d.id,
