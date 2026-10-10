@@ -8,6 +8,7 @@ import type {
 } from 'react';
 import type {
   Anchor,
+  Arrowhead,
   Handle,
   Item,
   Side,
@@ -28,13 +29,18 @@ import {
 } from '@/lib/items';
 import {
   alongPath,
+  arrowEndOf,
   arrowHead,
+  arrowStartOf,
+  arrowTriangle,
   connectorPoints,
+  elbowMid,
   isAttach,
+  itemConnectorPoints,
   outPoint,
   pathD,
   PLUS_OUT,
-  resolveAnchor,
+  resolveEnds,
   SIDES,
   sidePoint,
   type Pt,
@@ -57,6 +63,7 @@ import { startMarquee } from './canvas/marquee';
 import { startResize } from './canvas/resize';
 import { placeShape, placeSticky, startPlace } from './canvas/place';
 import { startConnect, startConnectFrom } from './canvas/connect';
+import { startBend } from './canvas/bend';
 import { startEndpoint } from './canvas/endpoint';
 import { endDrag, moveDrag } from './canvas/index';
 
@@ -90,7 +97,7 @@ interface Props {
   onQuickCreate(sourceId: string, side: Side): void;
   onResize(id: string, box: Rect, handle: Handle): void;
   onResizeAll(ids: string[], from: Rect, to: Rect): void;
-  onPatch(id: string, patch: Partial<Item>): void;
+  onPatch(id: string, patch: Partial<Item>, coalesceKey?: string): void;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onToggleLock(): void;
   onArrange(op: ArrangeOp): void;
@@ -100,6 +107,49 @@ interface Props {
   onEditCommit(id: string, text: string): void;
   onViewChange(v: View): void;
   onZoom(k: number): void;
+}
+
+function ArrowMark({
+  kind,
+  from,
+  to,
+  color,
+}: {
+  kind: Arrowhead;
+  from: Pt;
+  to: Pt;
+  color: string;
+}) {
+  if (kind === 'none') return null;
+  if (kind === 'circle') {
+    return (
+      <circle
+        cx={to.x}
+        cy={to.y}
+        r={4}
+        fill={color}
+        className="pointer-events-none"
+      />
+    );
+  }
+  if (kind === 'triangle') {
+    return (
+      <path
+        d={arrowTriangle(from, to)}
+        fill={color}
+        className="pointer-events-none"
+      />
+    );
+  }
+  return (
+    <path
+      d={arrowHead(from, to)}
+      fill="none"
+      stroke={color}
+      strokeWidth={1.5}
+      className="pointer-events-none"
+    />
+  );
 }
 
 const MIN_K = 0.1;
@@ -256,9 +306,7 @@ export default function Canvas(props: Props) {
       y1 = -Infinity;
     for (const it of items) {
       if (itemKind(it) === 'connector') {
-        const s = resolveAnchor(it.start, rects, { x: it.x, y: it.y });
-        const e = resolveAnchor(it.end, rects, { x: it.x, y: it.y });
-        const pts = connectorPoints(s, e, it.route ?? 'straight');
+        const pts = itemConnectorPoints(it, rects);
         for (const p of pts) {
           x0 = Math.min(x0, p.x);
           y0 = Math.min(y0, p.y);
@@ -335,11 +383,7 @@ export default function Canvas(props: Props) {
         if (!it) return null;
         if (itemKind(it) === 'connector') {
           const rects = liveRects(propsRef.current.items, null, null);
-          const s = resolveAnchor(it.start, rects, { x: it.x, y: it.y });
-          const e = resolveAnchor(it.end, rects, { x: it.x, y: it.y });
-          const mid = alongPath(
-            connectorPoints(s, e, it.route ?? 'straight'),
-          );
+          const mid = alongPath(itemConnectorPoints(it, rects));
           return { x: mid.x, y: mid.y, w: 0, h: 0 };
         }
         return boundsOf(it);
@@ -621,6 +665,20 @@ export default function Canvas(props: Props) {
       return;
     }
 
+    const bendEl = target.closest<HTMLElement>('[data-bend]');
+    if (bendEl && itemId) {
+      const it = p.items.find((i) => i.id === itemId);
+      const axis = bendEl.dataset.bend === 'y' ? 'y' : 'x';
+      dragRef.current = startBend(
+        e.nativeEvent,
+        itemId,
+        axis,
+        world,
+        it?.bend ?? 0,
+      );
+      return;
+    }
+
     const plusEl = target.closest<HTMLElement>('[data-plus]');
     if (plusEl && itemId) {
       const side = plusEl.dataset.plus as Side | undefined;
@@ -728,11 +786,7 @@ export default function Canvas(props: Props) {
     } else if (shown.size === 1) {
       const sole = selectedItems[0];
       if (sole && itemKind(sole) === 'connector') {
-        const s = resolveAnchor(sole.start, rects, { x: sole.x, y: sole.y });
-        const e = resolveAnchor(sole.end, rects, { x: sole.x, y: sole.y });
-        const mid = alongPath(
-          connectorPoints(s, e, sole.route ?? 'straight'),
-        );
+        const mid = alongPath(itemConnectorPoints(sole, rects));
         barLeft = mid.x * view.k + view.x;
         barTop = mid.y * view.k + view.y - 10;
       }
@@ -748,8 +802,9 @@ export default function Canvas(props: Props) {
       endDraft && endDraft.id === it.id && endDraft.which === 'end'
         ? endDraft.anchor
         : it.end;
-    let start = resolveAnchor(startA, rects, { x: it.x, y: it.y });
-    let end = resolveAnchor(endA, rects, { x: it.x, y: it.y });
+    const ends = resolveEnds(startA, endA, rects, { x: it.x, y: it.y });
+    let start = ends.start;
+    let end = ends.end;
     if (dragging && dragging.ids.has(it.id)) {
       if (startA && !isAttach(startA)) {
         start = {
@@ -772,17 +827,26 @@ export default function Canvas(props: Props) {
         end = { p: mapPoint(resize.from, resize.to, endA), side: null };
       }
     }
-    const pts = connectorPoints(start, end, it.route ?? 'straight');
+    const pts = connectorPoints(
+      start,
+      end,
+      it.route ?? 'straight',
+      it.bend,
+    );
     return { pts, start, end, mid: alongPath(pts) };
   }
 
   const draftPts = (() => {
     if (!draftLine) return null;
-    const s = resolveAnchor(draftLine.start, rects, { x: 0, y: 0 });
-    const e = resolveAnchor(draftLine.end, rects, { x: 0, y: 0 });
+    const ends = resolveEnds(
+      draftLine.start,
+      draftLine.end,
+      rects,
+      { x: 0, y: 0 },
+    );
     const route =
       props.tool.type === 'connector' ? props.tool.route : 'straight';
-    return connectorPoints(s, e, route);
+    return connectorPoints(ends.start, ends.end, route);
   })();
 
   return (
@@ -818,6 +882,11 @@ export default function Canvas(props: Props) {
             const d = pathD(pts);
             const last = pts[pts.length - 1];
             const prev = pts[pts.length - 2] ?? start.p;
+            const first = pts[0];
+            const next = pts[1] ?? last;
+            const color = selected ? '#0369a1' : '#52525b';
+            const midSeg =
+              (it.route ?? 'straight') === 'elbow' ? elbowMid(pts) : null;
             return (
               <g
                 key={it.id}
@@ -830,19 +899,37 @@ export default function Canvas(props: Props) {
                   strokeWidth={16}
                   style={{ pointerEvents: 'stroke' }}
                 />
+                {midSeg && (
+                  <path
+                    d={`M${midSeg.a.x} ${midSeg.a.y} L${midSeg.b.x} ${midSeg.b.y}`}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={16}
+                    data-bend={midSeg.axis}
+                    style={{
+                      pointerEvents: 'stroke',
+                      cursor: midSeg.axis === 'x' ? 'ew-resize' : 'ns-resize',
+                    }}
+                  />
+                )}
                 <path
                   d={d}
                   fill="none"
-                  stroke={selected ? '#0369a1' : '#52525b'}
+                  stroke={color}
                   strokeWidth={1.5}
                   className="pointer-events-none"
                 />
-                <path
-                  d={arrowHead(prev, last)}
-                  fill="none"
-                  stroke={selected ? '#0369a1' : '#52525b'}
-                  strokeWidth={1.5}
-                  className="pointer-events-none"
+                <ArrowMark
+                  kind={arrowStartOf(it)}
+                  from={next}
+                  to={first}
+                  color={color}
+                />
+                <ArrowMark
+                  kind={arrowEndOf(it)}
+                  from={prev}
+                  to={last}
+                  color={color}
                 />
                 {selected && (
                   <>

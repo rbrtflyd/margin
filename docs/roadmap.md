@@ -21,7 +21,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | done |
 | 2C | Text formatting and sticky sizing | 0D | done |
 | 3A | Connection dots and quick-create | 0B, 0C | done |
-| 3B | Arrowheads, curves, auto sides, elbow bends | 0D | open |
+| 3B | Arrowheads, curves, auto sides, elbow bends | 0D | done |
 | 3C | Connector label editing | 3B | open |
 | 3D | Assistant reads connectors | none | open |
 | 4A | Image storage pipeline | 0A, 0D | open |
@@ -193,10 +193,10 @@ Diamonds and triangles are cut out with a CSS `clipPath` today, and a clip path 
 
 ### 3B. Arrowheads, curves, auto sides, elbow bends
 
-- [ ] Arrowhead at the start, end, both, or neither, in a few styles, set from the selection bar.
-- [ ] A curved route alongside straight and elbow.
-- [ ] `side: 'auto'` re-picks the closest side as items move. New connectors use auto unless you dropped onto a specific side dot.
-- [ ] Dragging the middle segment of an elbow connector bends it, stored in `bend`.
+- [x] Arrowhead at the start, end, both, or neither, in a few styles, set from the selection bar.
+- [x] A curved route alongside straight and elbow.
+- [x] `side: 'auto'` re-picks the closest side as items move. New connectors use auto unless you dropped onto a specific side dot.
+- [x] Dragging the middle segment of an elbow connector bends it, stored in `bend`.
 
 ### 3C. Connector label editing
 

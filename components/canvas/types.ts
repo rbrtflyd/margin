@@ -108,6 +108,17 @@ export type Drag =
       id: string;
       which: 'start' | 'end';
       moved: boolean;
+    }
+  | {
+      kind: 'bend';
+      id: string;
+      axis: 'x' | 'y';
+      sx: number;
+      sy: number;
+      wx: number;
+      wy: number;
+      origin: number;
+      moved: boolean;
     };
 
 export type CanvasProps = {
@@ -124,7 +135,7 @@ export type CanvasProps = {
   onQuickCreate(sourceId: string, side: Side): void;
   onResize(id: string, box: Rect, handle: Handle): void;
   onResizeAll(ids: string[], from: Rect, to: Rect): void;
-  onPatch(id: string, patch: Partial<Item>): void;
+  onPatch(id: string, patch: Partial<Item>, coalesceKey?: string): void;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onToggleLock(): void;
   onArrange(op: ArrangeOp): void;

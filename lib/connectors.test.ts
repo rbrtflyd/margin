@@ -3,10 +3,12 @@ import {
   SNAP,
   connectorPoints,
   detachAnchor,
+  elbowMid,
   elbowPoints,
   oppositeSide,
   QUICK_GAP,
   quickCreateOrigin,
+  resolveEnds,
   snapAnchor,
   STUB,
 } from './connectors';
@@ -52,6 +54,32 @@ describe('snapAnchor', () => {
       side: 'e',
     });
   });
+
+  it('stores auto instead of a side when asAuto is set', () => {
+    expect(snapAnchor({ x: 110, y: 40 }, rects(box), SNAP, undefined, true)).toEqual({
+      itemId: 'n1',
+      side: 'auto',
+    });
+  });
+});
+
+describe('resolveEnds', () => {
+  it('picks auto from the other endpoint, not 0,0', () => {
+    const a = { x: 0, y: 0, w: 100, h: 80 };
+    const b = { x: 200, y: 0, w: 100, h: 80 };
+    const m = new Map([
+      ['a', a],
+      ['b', b],
+    ]);
+    const ends = resolveEnds(
+      { itemId: 'a', side: 'auto' },
+      { itemId: 'b', side: 'auto' },
+      m,
+      { x: 0, y: 0 },
+    );
+    expect(ends.start.side).toBe('e');
+    expect(ends.end.side).toBe('w');
+  });
 });
 
 describe('elbowPoints', () => {
@@ -64,6 +92,13 @@ describe('elbowPoints', () => {
     const midX = (STUB + (100 - STUB)) / 2;
     expect(pts.some((p) => p.x === midX && p.y === 0)).toBe(true);
     expect(pts.some((p) => p.x === midX && p.y === 40)).toBe(true);
+  });
+
+  it('offsets the mid segment by bend', () => {
+    const pts = elbowPoints({ x: 0, y: 0 }, 'e', { x: 100, y: 40 }, 'w', 12);
+    const mid = elbowMid(pts);
+    expect(mid?.axis).toBe('x');
+    expect(mid?.a.x).toBe((STUB + (100 - STUB)) / 2 + 12);
   });
 });
 
@@ -87,6 +122,17 @@ describe('connectorPoints', () => {
     expect(connectorPoints(start, end, 'elbow')).toEqual(
       elbowPoints(start.p, start.side, end.p, end.side),
     );
+  });
+
+  it('samples a curved route with more than two points', () => {
+    const pts = connectorPoints(
+      { p: { x: 0, y: 0 }, side: 'e' },
+      { p: { x: 100, y: 40 }, side: 'w' },
+      'curved',
+    );
+    expect(pts.length).toBeGreaterThan(2);
+    expect(pts[0]).toEqual({ x: 0, y: 0 });
+    expect(pts[pts.length - 1]).toEqual({ x: 100, y: 40 });
   });
 });
 

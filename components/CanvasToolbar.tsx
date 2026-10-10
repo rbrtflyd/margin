@@ -165,6 +165,12 @@ export default function CanvasToolbar(props: Props) {
             Elbow
             <DropdownMenuShortcut>X</DropdownMenuShortcut>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              props.onTool({ type: 'connector', route: 'curved' })
+            }>
+            Curve
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <button

@@ -671,14 +671,17 @@ export default function Margin({ user }: { user: User | null }) {
     );
   };
 
-  const patchItem = (id: string, patch: Partial<Item>) => {
-    commitItems((items) =>
-      items.map((i) => {
-        if (i.id !== id) return i;
-        const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
-        rememberStyle(next);
-        return next;
-      }),
+  const patchItem = (id: string, patch: Partial<Item>, coalesceKey?: string) => {
+    commitItems(
+      (items) =>
+        items.map((i) => {
+          if (i.id !== id) return i;
+          const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
+          rememberStyle(next);
+          return next;
+        }),
+      true,
+      coalesceKey,
     );
   };
 
@@ -707,6 +710,13 @@ export default function Margin({ user }: { user: User | null }) {
           )
             return i;
           if (patch.route && kind !== 'connector') return i;
+          if (
+            (patch.arrowStart !== undefined ||
+              patch.arrowEnd !== undefined ||
+              patch.bend !== undefined) &&
+            kind !== 'connector'
+          )
+            return i;
           if (
             (patch.fontSize !== undefined || patch.align !== undefined) &&
             !isBox(i)

@@ -1,4 +1,4 @@
-import type { Anchor, Item, Route, Side } from './types';
+import type { Anchor, Arrowhead, Item, Route, Side } from './types';
 import { isBox, storedRect, type Rect } from './items';
 
 export type Pt = { x: number; y: number };
@@ -111,6 +111,7 @@ export function snapAnchor(
   rects: Map<string, Rect>,
   snap = SNAP,
   excludeId?: string,
+  asAuto = false,
 ): Anchor {
   let best: { score: number; itemId: string; side: Side } | null = null;
   for (const [id, r] of rects) {
@@ -127,8 +128,59 @@ export function snapAnchor(
     if (!best || dist < best.score) best = { score: dist, itemId: id, side };
   }
   return best
-    ? { itemId: best.itemId, side: best.side }
+    ? { itemId: best.itemId, side: asAuto ? 'auto' : best.side }
     : { x: Math.round(p.x), y: Math.round(p.y) };
+}
+
+function centerOf(r: Rect): Pt {
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+}
+
+function hintOf(anchor: Anchor | undefined, rects: Map<string, Rect>, fallback: Pt): Pt {
+  if (!anchor) return fallback;
+  if (isAttach(anchor)) {
+    const r = rects.get(anchor.itemId);
+    return r ? centerOf(r) : fallback;
+  }
+  return { x: anchor.x, y: anchor.y };
+}
+
+export function facingSide(rect: Rect, p: Pt): Side {
+  const c = centerOf(rect);
+  const dx = p.x - c.x;
+  const dy = p.y - c.y;
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'e' : 'w';
+  return dy > 0 ? 's' : 'n';
+}
+
+function resolveOne(
+  anchor: Anchor | undefined,
+  toward: Pt,
+  rects: Map<string, Rect>,
+  fallback: Pt,
+): { p: Pt; side: Side | null } {
+  if (!anchor) return { p: fallback, side: null };
+  if (isAttach(anchor)) {
+    const r = rects.get(anchor.itemId);
+    if (!r) return { p: fallback, side: null };
+    const side = anchor.side === 'auto' ? facingSide(r, toward) : anchor.side;
+    return { p: sidePoint(r, side), side };
+  }
+  return { p: { x: anchor.x, y: anchor.y }, side: null };
+}
+
+/** Resolve both ends so `side: 'auto'` aims at the other endpoint. */
+export function resolveEnds(
+  startA: Anchor | undefined,
+  endA: Anchor | undefined,
+  rects: Map<string, Rect>,
+  fallback: Pt,
+): { start: { p: Pt; side: Side | null }; end: { p: Pt; side: Side | null } } {
+  const startHint = hintOf(endA, rects, fallback);
+  let start = resolveOne(startA, startHint, rects, fallback);
+  const end = resolveOne(endA, start.p, rects, fallback);
+  start = resolveOne(startA, end.p, rects, fallback);
+  return { start, end };
 }
 
 function isH(side: Side | null) {
@@ -140,13 +192,14 @@ export function elbowPoints(
   aSide: Side | null,
   b: Pt,
   bSide: Side | null,
+  bend = 0,
 ): Pt[] {
   const sa = aSide ? outPoint(a, aSide, STUB) : a;
   const sb = bSide ? outPoint(b, bSide, STUB) : b;
   const start = aSide ? [a, sa] : [a];
   const end = bSide ? [sb, b] : [b];
   if (isH(aSide) && isH(bSide)) {
-    const midX = (sa.x + sb.x) / 2;
+    const midX = (sa.x + sb.x) / 2 + bend;
     return [
       ...start,
       { x: midX, y: sa.y },
@@ -155,7 +208,7 @@ export function elbowPoints(
     ];
   }
   if (!isH(aSide) && aSide && !isH(bSide) && bSide) {
-    const midY = (sa.y + sb.y) / 2;
+    const midY = (sa.y + sb.y) / 2 + bend;
     return [
       ...start,
       { x: sa.x, y: midY },
@@ -169,13 +222,89 @@ export function elbowPoints(
   return [...start, { x: sa.x, y: sb.y }, ...end];
 }
 
+/** Middle segment of an opposing-side elbow, if any. */
+export function elbowMid(
+  pts: Pt[],
+): { a: Pt; b: Pt; axis: 'x' | 'y' } | null {
+  if (pts.length < 4) return null;
+  let vert: { a: Pt; b: Pt; axis: 'x' | 'y' } | null = null;
+  let horz: { a: Pt; b: Pt; axis: 'x' | 'y' } | null = null;
+  for (let i = 1; i < pts.length - 2; i++) {
+    const p = pts[i];
+    const q = pts[i + 1];
+    if (p.x === q.x && Math.abs(p.y - q.y) > 1) {
+      vert = { a: p, b: q, axis: 'x' };
+    }
+    if (p.y === q.y && Math.abs(p.x - q.x) > 1) {
+      horz = { a: p, b: q, axis: 'y' };
+    }
+  }
+  const stubH = pts[0].y === pts[1]?.y;
+  if (stubH && vert) return vert;
+  if (!stubH && horz) return horz;
+  return vert ?? horz;
+}
+
+function cubic(a: Pt, c1: Pt, c2: Pt, b: Pt, t: number): Pt {
+  const u = 1 - t;
+  return {
+    x: u * u * u * a.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * b.x,
+    y: u * u * u * a.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * b.y,
+  };
+}
+
+export function curvePoints(
+  start: { p: Pt; side: Side | null },
+  end: { p: Pt; side: Side | null },
+): Pt[] {
+  const sa = start.side ? outPoint(start.p, start.side, STUB) : start.p;
+  const sb = end.side ? outPoint(end.p, end.side, STUB) : end.p;
+  const d = Math.max(40, Math.hypot(sb.x - sa.x, sb.y - sa.y) / 2);
+  const c1 = start.side ? outPoint(sa, start.side, d) : {
+    x: sa.x + (sb.x - sa.x) / 3,
+    y: sa.y + (sb.y - sa.y) / 3,
+  };
+  const c2 = end.side ? outPoint(sb, end.side, d) : {
+    x: sb.x - (sb.x - sa.x) / 3,
+    y: sb.y - (sb.y - sa.y) / 3,
+  };
+  const pts: Pt[] = [start.p];
+  if (start.side) pts.push(sa);
+  for (let i = 1; i <= 8; i++) pts.push(cubic(sa, c1, c2, sb, i / 8));
+  if (end.side) pts.push(end.p);
+  return pts;
+}
+
 export function connectorPoints(
   start: { p: Pt; side: Side | null },
   end: { p: Pt; side: Side | null },
   route: Route,
+  bend = 0,
 ): Pt[] {
   if (route === 'straight') return [start.p, end.p];
-  return elbowPoints(start.p, start.side, end.p, end.side);
+  if (route === 'curved') return curvePoints(start, end);
+  return elbowPoints(start.p, start.side, end.p, end.side, bend);
+}
+
+export function itemConnectorPoints(
+  it: Item,
+  rects: Map<string, Rect>,
+): Pt[] {
+  const ends = resolveEnds(it.start, it.end, rects, { x: it.x, y: it.y });
+  return connectorPoints(
+    ends.start,
+    ends.end,
+    it.route ?? 'straight',
+    it.bend,
+  );
+}
+
+export function arrowEndOf(it: Item): Arrowhead {
+  return it.arrowEnd ?? 'arrow';
+}
+
+export function arrowStartOf(it: Item): Arrowhead {
+  return it.arrowStart ?? 'none';
 }
 
 export function pathD(pts: Pt[]): string {
@@ -195,6 +324,19 @@ export function arrowHead(from: Pt, to: Pt, size = 8): string {
     y: to.y - size * Math.sin(ang + Math.PI / 6),
   };
   return `M${p1.x} ${p1.y} L${to.x} ${to.y} L${p2.x} ${p2.y}`;
+}
+
+export function arrowTriangle(from: Pt, to: Pt, size = 9): string {
+  const ang = Math.atan2(to.y - from.y, to.x - from.x);
+  const p1 = {
+    x: to.x - size * Math.cos(ang - Math.PI / 7),
+    y: to.y - size * Math.sin(ang - Math.PI / 7),
+  };
+  const p2 = {
+    x: to.x - size * Math.cos(ang + Math.PI / 7),
+    y: to.y - size * Math.sin(ang + Math.PI / 7),
+  };
+  return `M${to.x} ${to.y} L${p1.x} ${p1.y} L${p2.x} ${p2.y} Z`;
 }
 
 export function alongPath(pts: Pt[], t = 0.5): Pt {

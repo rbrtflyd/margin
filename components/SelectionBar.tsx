@@ -3,6 +3,7 @@
 import type { ArrangeOp } from '@/lib/align';
 import type {
   Align,
+  Arrowhead,
   Fill,
   FontSize,
   Item,
@@ -11,6 +12,7 @@ import type {
   StrokeStyle,
   StrokeWidth,
 } from '@/lib/types';
+import { arrowEndOf, arrowStartOf } from '@/lib/connectors';
 import { FILL_ORDER, FILLS, INK, isBox, itemKind, STICKY_WIDE } from '@/lib/items';
 import type { FormatKind } from '@/lib/format';
 import {
@@ -298,20 +300,104 @@ export default function SelectionBar(props: Props) {
         )}
         {routes.length > 0 && (
           <>
-            <button
-              type="button"
-              className={pill}
-              aria-pressed={route === 'straight'}
-              onClick={() => props.onPatchAll({ route: 'straight' }, 'route')}>
-              Straight
-            </button>
-            <button
-              type="button"
-              className={pill}
-              aria-pressed={route === 'elbow'}
-              onClick={() => props.onPatchAll({ route: 'elbow' }, 'route')}>
-              Elbow
-            </button>
+            {(['straight', 'elbow', 'curved'] as Route[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={pill}
+                aria-pressed={route === r}
+                onClick={() => props.onPatchAll({ route: r }, 'route')}>
+                {r === 'straight' ? 'Straight' : r === 'elbow' ? 'Elbow' : 'Curve'}
+              </button>
+            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={pill}
+                aria-label="Arrows"
+                title="Arrows">
+                Arrows
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                className="min-w-36 p-1">
+                {(
+                  [
+                    ['none', 'None'],
+                    ['start', 'Start'],
+                    ['end', 'End'],
+                    ['both', 'Both'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <DropdownMenuItem
+                    key={id}
+                    aria-pressed={
+                      shared(routes, (i) => {
+                        const s = arrowStartOf(i) !== 'none';
+                        const e = arrowEndOf(i) !== 'none';
+                        if (s && e) return 'both';
+                        if (s) return 'start';
+                        if (e) return 'end';
+                        return 'none';
+                      }) === id
+                    }
+                    onClick={() => {
+                      const style =
+                        shared(routes, (i) => {
+                          const s = arrowStartOf(i);
+                          const e = arrowEndOf(i);
+                          if (s !== 'none') return s;
+                          if (e !== 'none') return e;
+                          return 'arrow' as Arrowhead;
+                        }) ?? 'arrow';
+                      const none = 'none' as Arrowhead;
+                      const patch =
+                        id === 'none'
+                          ? { arrowStart: none, arrowEnd: none }
+                          : id === 'start'
+                            ? { arrowStart: style, arrowEnd: none }
+                            : id === 'end'
+                              ? { arrowStart: none, arrowEnd: style }
+                              : { arrowStart: style, arrowEnd: style };
+                      props.onPatchAll(patch, 'arrow');
+                    }}>
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+                {(['arrow', 'triangle', 'circle'] as Arrowhead[]).map((st) => (
+                  <DropdownMenuItem
+                    key={st}
+                    aria-pressed={
+                      shared(routes, (i) => {
+                        const s = arrowStartOf(i);
+                        const e = arrowEndOf(i);
+                        if (s !== 'none') return s;
+                        if (e !== 'none') return e;
+                        return 'arrow';
+                      }) === st
+                    }
+                    onClick={() => {
+                      const ends =
+                        shared(routes, (i) => {
+                          const s = arrowStartOf(i) !== 'none';
+                          const e = arrowEndOf(i) !== 'none';
+                          if (s && e) return 'both';
+                          if (s) return 'start';
+                          if (e) return 'end';
+                          return 'end';
+                        }) ?? 'end';
+                      const patch =
+                        ends === 'start'
+                          ? { arrowStart: st, arrowEnd: 'none' as Arrowhead }
+                          : ends === 'both'
+                            ? { arrowStart: st, arrowEnd: st }
+                            : { arrowStart: 'none' as Arrowhead, arrowEnd: st };
+                      props.onPatchAll(patch, 'arrow');
+                    }}>
+                    {st === 'arrow' ? 'Arrow' : st === 'triangle' ? 'Triangle' : 'Circle'}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
         {props.items.filter(isBox).length >= 2 && (

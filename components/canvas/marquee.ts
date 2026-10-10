@@ -1,8 +1,5 @@
 import { boundsOf, isBox, itemKind } from '@/lib/items';
-import {
-  connectorPoints,
-  resolveAnchor,
-} from '@/lib/connectors';
+import { itemConnectorPoints } from '@/lib/connectors';
 import type { Drag, InteractionCtx } from './types';
 
 export function startMarquee(
@@ -58,9 +55,7 @@ export function moveMarquee(
   for (const it of ctx.propsRef.current.items) {
     if (it.locked) continue;
     if (itemKind(it) === 'connector') {
-      const s = resolveAnchor(it.start, rects, { x: it.x, y: it.y });
-      const end = resolveAnchor(it.end, rects, { x: it.x, y: it.y });
-      const pts = connectorPoints(s, end, it.route ?? 'straight');
+      const pts = itemConnectorPoints(it, rects);
       let x0 = Infinity,
         y0 = Infinity,
         x1 = -Infinity,
