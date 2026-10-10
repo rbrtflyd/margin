@@ -115,7 +115,9 @@ export function endMove(
     else p.onMove(d.ids, snapped.dx, snapped.dy);
   } else if (!d.moved) {
     const it = p.items.find((i) => i.id === d.clickId);
-    if (it && itemKind(it) === 'link' && it.url && !d.shift) {
+    if (it && itemKind(it) === 'embed' && !d.shift) {
+      ctx.activateEmbed(it.id);
+    } else if (it && itemKind(it) === 'link' && it.url && !d.shift) {
       window.open(it.url, '_blank', 'noopener,noreferrer');
     } else if (!d.shift && d.wasSelected && p.selected.size > 1) {
       const groupHits =

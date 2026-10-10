@@ -182,6 +182,7 @@ export type InteractionCtx = {
   toWorld(clientX: number, clientY: number): Pt;
   currentRects(): Map<string, Rect>;
   rootRect(): DOMRect | null;
+  activateEmbed(id: string): void;
 };
 
 export function isEditable(t: EventTarget | null): boolean {

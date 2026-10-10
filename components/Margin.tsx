@@ -19,6 +19,7 @@ import type {
 } from '@/lib/types';
 import { FORMAT_EVENT, wrapSelection, type FormatKind } from '@/lib/format';
 import { boardSize, encodeWebp, uploadAsset } from '@/lib/images';
+import { canEmbed } from '@/lib/embeds';
 import { isLoneUrl } from '@/lib/links';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import {
@@ -920,6 +921,10 @@ export default function Margin({ user }: { user: User | null }) {
           if (patch.w === STICKY_WIDE && patch.h === undefined && kind !== 'sticky')
             return i;
           if (patch.caption !== undefined && kind !== 'image') return i;
+          if (patch.kind === 'embed' || patch.kind === 'link') {
+            if (kind !== 'link' && kind !== 'embed') return i;
+            if (patch.kind === 'embed' && !canEmbed(i.url)) return i;
+          }
           const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
           rememberStyle(next);
           return next;

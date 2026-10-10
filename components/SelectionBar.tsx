@@ -13,6 +13,7 @@ import type {
   StrokeWidth,
 } from '@/lib/types';
 import { arrowEndOf, arrowStartOf } from '@/lib/connectors';
+import { canEmbed } from '@/lib/embeds';
 import { FILL_ORDER, FILLS, INK, isBox, itemKind, STICKY_WIDE } from '@/lib/items';
 import type { FormatKind } from '@/lib/format';
 import {
@@ -98,6 +99,10 @@ export default function SelectionBar(props: Props) {
   });
   const routes = props.items.filter((i) => itemKind(i) === 'connector');
   const images = props.items.filter((i) => itemKind(i) === 'image');
+  const embeddable = props.items.filter(
+    (i) =>
+      (itemKind(i) === 'link' || itemKind(i) === 'embed') && canEmbed(i.url),
+  );
   const fill = shared(fillables, effectiveFill);
   const stroke = shared(shapes, (i) => i.stroke ?? null);
   const strokeWidth = shared(shapes, (i) => i.strokeWidth ?? null);
@@ -524,6 +529,25 @@ export default function SelectionBar(props: Props) {
             </button>
           </>
         )}
+        {embeddable.length > 0 &&
+          embeddable.length === props.items.length && (
+            <>
+              <button
+                type="button"
+                className={pill}
+                aria-pressed={embeddable.every((i) => itemKind(i) === 'link')}
+                onClick={() => props.onPatchAll({ kind: 'link' }, 'embed')}>
+                Card
+              </button>
+              <button
+                type="button"
+                className={pill}
+                aria-pressed={embeddable.every((i) => itemKind(i) === 'embed')}
+                onClick={() => props.onPatchAll({ kind: 'embed' }, 'embed')}>
+                Embed
+              </button>
+            </>
+          )}
         {images.length === 1 && (
           <input
             type="text"

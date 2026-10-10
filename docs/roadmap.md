@@ -27,7 +27,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 4A | Image storage pipeline | 0A, 0D | done |
 | 4B | Image items on the canvas | 4A | done |
 | 4C | Link cards and `/api/unfurl` | 0D | done |
-| 4D | Embeds | 4C | open |
+| 4D | Embeds | 4C | done |
 | 4E | Assistant reads images and links | 4B, 4C | open |
 | 5A | Sections | 0C, 0D | open |
 | 5B | Zoom menu, minimap, find | 0C | open |
@@ -241,10 +241,10 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 
 ### 4D. Embeds
 
-- [ ] Use an allowlist of providers, each with its own URL rewrite: YouTube (`youtube-nocookie.com/embed`), Vimeo, Loom, Figma (`embed.figma.com`), Google Slides and Docs, CodePen, Spotify. Any other URL stays a link card.
-- [ ] Show a still preview until you click to activate it. While inactive, a cover over the iframe takes pointer events so the embed can be dragged and selected. Esc or clicking outside deactivates it.
-- [ ] Use sandboxed iframes with only the permissions each provider needs.
-- [ ] Toggle between card and embed views from the selection bar.
+- [x] Use an allowlist of providers, each with its own URL rewrite: YouTube (`youtube-nocookie.com/embed`), Vimeo, Loom, Figma (`embed.figma.com`), Google Slides and Docs, CodePen, Spotify. Any other URL stays a link card.
+- [x] Show a still preview until you click to activate it. While inactive, a cover over the iframe takes pointer events so the embed can be dragged and selected. Esc or clicking outside deactivates it.
+- [x] Use sandboxed iframes with only the permissions each provider needs.
+- [x] Toggle between card and embed views from the selection bar.
 
 ### 4E. Assistant reads images and links
 

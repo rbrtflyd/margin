@@ -195,6 +195,7 @@ export default function Canvas(props: Props) {
   } | null>(null);
   const [resize, setResize] = useState<ResizeLive | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const [guides, setGuides] = useState<Guides | null>(null);
   const resizeRef = useRef(resize);
   resizeRef.current = resize;
@@ -310,6 +311,7 @@ export default function Canvas(props: Props) {
     toWorld,
     currentRects,
     rootRect,
+    activateEmbed: (id) => setActiveEmbedId(id),
   };
 
   function fitTo(items: Item[]) {
@@ -477,6 +479,7 @@ export default function Canvas(props: Props) {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveEmbedId(null);
       if (e.code === 'Space' && !isEditable(e.target) && !e.repeat) {
         e.preventDefault();
         spaceRef.current = true;
@@ -650,6 +653,10 @@ export default function Canvas(props: Props) {
     if (isEditable(e.target)) return;
     const ctx = ctxRef.current;
     const p = ctx.propsRef.current;
+    const hit = (e.target as HTMLElement).closest<HTMLElement>('[data-item]');
+    if (activeEmbedId && hit?.dataset.item !== activeEmbedId) {
+      setActiveEmbedId(null);
+    }
     if (e.pointerType === 'touch') {
       touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.current.size === 2) {
@@ -1102,6 +1109,7 @@ export default function Canvas(props: Props) {
                   ? props.assetUrls?.[it.assetId]
                   : props.assetUrls?.[it.id]
               }
+              embedActive={activeEmbedId === it.id}
               onEditCommit={(id, text) =>
                 propsRef.current.onEditCommit(id, text)
               }

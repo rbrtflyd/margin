@@ -19,6 +19,7 @@ import {
 } from '@/lib/items';
 import { Markdown } from '@/lib/markdown';
 import { shapePad, shapePaths } from '@/lib/shapes';
+import { embedAllow, embedSrc } from '@/lib/embeds';
 import { FORMAT_EVENT, wrapSelection, type FormatKind } from '@/lib/format';
 
 export const HANDLE_POS: Record<
@@ -416,6 +417,7 @@ interface Props {
   offset: { x: number; y: number } | null;
   zoom: number;
   src?: string;
+  embedActive?: boolean;
   onEditCommit: (id: string, text: string) => void;
   onResizeDown: (id: string, handle: Handle, e: ReactPointerEvent) => void;
   register: (id: string, el: HTMLDivElement | null) => void;
@@ -496,8 +498,9 @@ export default function BoardItem(props: Props) {
           ? ' px-3 py-2.5 shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
           : '') +
         (kind === 'image' ? ' overflow-hidden bg-stone-200' : '') +
-        (kind === 'link'
-          ? ' cursor-pointer overflow-hidden bg-white shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
+        (kind === 'link' || kind === 'embed'
+          ? ' overflow-hidden bg-white shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]' +
+            (kind === 'link' || !props.embedActive ? ' cursor-pointer' : '')
           : '') +
         (kind === 'shape'
           ? ' flex items-center ' +
@@ -590,7 +593,26 @@ export default function BoardItem(props: Props) {
           claude={fill.claude}
         />
       )}
-      {kind !== 'image' && kind !== 'link' && (
+      {kind === 'embed' && (
+        <>
+          {props.embedActive && it.url && embedSrc(it.url) ? (
+            <iframe
+              src={embedSrc(it.url) ?? undefined}
+              title={it.meta?.title || 'Embed'}
+              className="size-full border-0"
+              sandbox="allow-scripts allow-same-origin"
+              allow={embedAllow(it.url)}
+            />
+          ) : (
+            <LinkCard
+              item={it}
+              claude={fill.claude}
+            />
+          )}
+          {!props.embedActive && <div className="absolute inset-0 z-[2]" />}
+        </>
+      )}
+      {kind !== 'image' && kind !== 'link' && kind !== 'embed' && (
       <div className={'relative z-[1] min-w-0 ' + (kind === 'shape' ? 'w-full' : '')}>
         {kind === 'text' && it.by === 'claude' && (
           <div className="mb-1 font-mono text-[9.5px] font-medium tracking-widest text-sky-700 uppercase">
