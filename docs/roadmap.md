@@ -28,7 +28,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 4B | Image items on the canvas | 4A | done |
 | 4C | Link cards and `/api/unfurl` | 0D | done |
 | 4D | Embeds | 4C | done |
-| 4E | Assistant reads images and links | 4B, 4C | open |
+| 4E | Assistant reads images and links | 4B, 4C | done |
 | 5A | Sections | 0C, 0D | open |
 | 5B | Zoom menu, minimap, find | 0C | open |
 | 5C | Viewport culling and performance | 0C | open |
@@ -248,7 +248,7 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 
 ### 4E. Assistant reads images and links
 
-- [ ] Send captions, link titles, descriptions, and URLs to the assistant along with the text.
+- [x] Send captions, link titles, descriptions, and URLs to the assistant along with the text.
 - [ ] Later and opt-in: send the image pixels to Claude.
 
 ## Phase 5: Structure, navigation, output

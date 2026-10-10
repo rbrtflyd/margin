@@ -4,6 +4,7 @@ import {
   alongPath,
   boxesForAsk,
   connectorEdges,
+  toAskBox,
   connectorPoints,
   detachAnchor,
   elbowMid,
@@ -261,6 +262,20 @@ describe('connectorEdges', () => {
       },
     ];
     expect(boxesForAsk(items).map((i) => i.id)).toEqual(['a', 'b']);
+    expect(
+      toAskBox({
+        id: 'i1',
+        x: 0,
+        y: 0,
+        text: '',
+        by: 'me',
+        createdAt: '',
+        editedAt: '',
+        kind: 'image',
+        caption: 'sky card',
+        assetId: 'kg1',
+      }),
+    ).toMatchObject({ caption: 'sky card' });
     expect(connectorEdges(items)).toEqual([
       { from: 'a', to: null, label: 'depends' },
     ]);

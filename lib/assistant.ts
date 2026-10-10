@@ -1,5 +1,5 @@
 import { anthropic } from '@ai-sdk/anthropic';
-import type { AskEdge, AskRequest } from './types';
+import type { AskBox, AskEdge, AskRequest } from './types';
 
 const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const HISTORY_MESSAGES = 13;
@@ -15,7 +15,7 @@ export function languageModel() {
  */
 export const SYSTEM_PROMPT = `You are the assistant inside Margin, a canvas where a product designer thinks in loose text boxes.
 
-Each box is free text. It might be an idea, a question, a note to self, a quote from a call, a task, a link, or a mix. Interpret them yourself; never ask the designer to label or sort anything. Position is a hint: boxes close together are probably related. Lines between boxes are connections, sometimes with a label; treat them as how boxes relate, not as items of their own. Don't invent connections that aren't listed.
+Each box is free text. It might be an idea, a question, a note to self, a quote from a call, a task, a link, or a mix. Interpret them yourself; never ask the designer to label or sort anything. Position is a hint: boxes close together are probably related. Lines between boxes are connections, sometimes with a label; treat them as how boxes relate, not as items of their own. Don't invent connections that aren't listed. Images and link cards are on the board too: read their captions, titles, and URLs. You do not see image pixels.
 
 Your role is assistant and rubber duck, not co-designer:
 - Surface what is already on the board that bears on their message. Quote a few words of a box so they can find it.
@@ -38,8 +38,9 @@ export function boardContext(req: AskRequest): string {
   const lines: string[] = [];
   let used = 0;
   for (const it of ordered) {
-    const text = it.text.length > MAX_ITEM_CHARS ? it.text.slice(0, MAX_ITEM_CHARS) + ' [cut]' : it.text;
-    const line = `[${it.id}] (${Math.round(it.x)}, ${Math.round(it.y)})${it.by === 'claude' ? ' written by you earlier' : ''}${selected.has(it.id) ? ' SELECTED' : ''}\n${text}`;
+    const line =
+      `[${it.id}] (${Math.round(it.x)}, ${Math.round(it.y)})${it.by === 'claude' ? ' written by you earlier' : ''}${selected.has(it.id) ? ' SELECTED' : ''}\n` +
+      formatBoxBody(it);
     if (used + line.length > MAX_BOARD_CHARS) {
       lines.push(`[${ordered.length - lines.length} more boxes not shown: the board is too large to send in full]`);
       break;
@@ -55,6 +56,20 @@ export function boardContext(req: AskRequest): string {
       ? ''
       : `\n\nConnections:\n${req.edges.map(formatEdge).join('\n')}`;
   return `Board: "${req.boardName}"\nToday: ${new Date().toDateString()}\n${scope}\n\nBoxes (id, position, text):\n\n${lines.join('\n\n') || '(the board is empty)'}${connections}`;
+}
+
+function clip(s: string): string {
+  return s.length > MAX_ITEM_CHARS ? s.slice(0, MAX_ITEM_CHARS) + ' [cut]' : s;
+}
+
+function formatBoxBody(it: AskBox): string {
+  const parts: string[] = [];
+  if (it.text.trim()) parts.push(clip(it.text));
+  if (it.caption) parts.push('caption: ' + clip(it.caption));
+  if (it.title) parts.push('title: ' + clip(it.title));
+  if (it.description) parts.push('description: ' + clip(it.description));
+  if (it.url) parts.push('url: ' + clip(it.url));
+  return parts.join('\n') || '(empty)';
 }
 
 function formatEdge(e: AskEdge): string {
@@ -102,13 +117,20 @@ export function validateAsk(body: unknown): AskRequest | string {
     if (!raw || typeof raw !== 'object') continue;
     const i = raw as Record<string, unknown>;
     if (typeof i.id !== 'string' || typeof i.text !== 'string') continue;
-    clean.push({
+    const box: AskBox = {
       id: i.id.slice(0, 40),
       text: i.text,
       x: typeof i.x === 'number' ? i.x : 0,
       y: typeof i.y === 'number' ? i.y : 0,
       by: i.by === 'claude' ? 'claude' : 'me',
-    });
+    };
+    if (typeof i.url === 'string' && i.url) box.url = i.url.slice(0, 2000);
+    if (typeof i.title === 'string' && i.title) box.title = i.title.slice(0, 500);
+    if (typeof i.description === 'string' && i.description)
+      box.description = i.description.slice(0, 2000);
+    if (typeof i.caption === 'string' && i.caption)
+      box.caption = i.caption.slice(0, 2000);
+    clean.push(box);
   }
   const selectedIds = Array.isArray(b.selectedIds) ? b.selectedIds.filter((x): x is string => typeof x === 'string').slice(0, 2000) : [];
   const history = Array.isArray(b.history)

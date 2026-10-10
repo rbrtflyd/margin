@@ -9,7 +9,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { AskTurn, Item } from '@/lib/types';
-import { boxesForAsk, connectorEdges } from '@/lib/connectors';
+import { boxesForAsk, connectorEdges, toAskBox } from '@/lib/connectors';
 import { nowISO } from '@/lib/store';
 import {
   MessageScroller,
@@ -196,13 +196,7 @@ export default function AskPanel(props: Props) {
           const boxIds = new Set(boxes.map((i) => i.id));
           return {
             boardName: b.boardName,
-            items: boxes.map((i) => ({
-              id: i.id,
-              text: i.text,
-              x: i.x,
-              y: i.y,
-              by: i.by,
-            })),
+            items: boxes.map(toAskBox),
             edges: connectorEdges(b.items),
             selectedIds: b.selectedIds.filter((id) => boxIds.has(id)),
           };

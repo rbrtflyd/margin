@@ -31,6 +31,40 @@ describe('validateAsk', () => {
     if (typeof got === 'string') throw new Error(got);
     expect(got.edges).toEqual([]);
   });
+
+  it('keeps captions, titles, and urls on boxes', () => {
+    const got = validateAsk({
+      question: "what's on the board?",
+      items: [
+        {
+          id: 'i1',
+          text: '',
+          x: 0,
+          y: 0,
+          by: 'me',
+          caption: 'sky card',
+        },
+        {
+          id: 'l1',
+          text: '',
+          x: 10,
+          y: 0,
+          by: 'me',
+          url: 'https://github.com/foo/bar',
+          title: 'foo/bar',
+          description: 'a repo',
+        },
+      ],
+    });
+    expect(typeof got).toBe('object');
+    if (typeof got === 'string') throw new Error(got);
+    expect(got.items[0].caption).toBe('sky card');
+    expect(got.items[1]).toMatchObject({
+      url: 'https://github.com/foo/bar',
+      title: 'foo/bar',
+      description: 'a repo',
+    });
+  });
 });
 
 describe('boardContext', () => {
@@ -56,6 +90,39 @@ describe('boardContext', () => {
     expect(ctx).toContain('[b] --> (free)');
     expect(ctx).not.toContain('connector');
   });
+
+  it('lists captions, titles, and urls under a box', () => {
+    const ctx = boardContext({
+      question: "what's on the board?",
+      boardName: 'Board',
+      items: [
+        {
+          id: 'i1',
+          text: '',
+          x: 0,
+          y: 0,
+          by: 'me',
+          caption: 'sky card',
+        },
+        {
+          id: 'l1',
+          text: '',
+          x: 40,
+          y: 0,
+          by: 'me',
+          url: 'https://github.com/foo/bar',
+          title: 'foo/bar',
+        },
+      ],
+      edges: [],
+      selectedIds: [],
+      history: [],
+    });
+    expect(ctx).toContain('caption: sky card');
+    expect(ctx).toContain('title: foo/bar');
+    expect(ctx).toContain('url: https://github.com/foo/bar');
+    expect(ctx).not.toMatch(/\[i1\][^\n]*\n\(empty\)/);
+  });
 });
 
 describe('SYSTEM_PROMPT', () => {
@@ -64,5 +131,11 @@ describe('SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toMatch(/rubber duck/i);
     expect(SYSTEM_PROMPT).not.toMatch(/generate/i);
     expect(SYSTEM_PROMPT).not.toMatch(/suggest/i);
+  });
+
+  it('tells the assistant to read captions and urls, not pixels', () => {
+    expect(SYSTEM_PROMPT).toMatch(/captions/i);
+    expect(SYSTEM_PROMPT).toMatch(/pixels/i);
+    expect(SYSTEM_PROMPT).toMatch(/link cards/i);
   });
 });

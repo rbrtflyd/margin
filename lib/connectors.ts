@@ -1,4 +1,4 @@
-import type { Anchor, Arrowhead, AskEdge, Item, Route, Side } from './types';
+import type { Anchor, Arrowhead, AskBox, AskEdge, Item, Route, Side } from './types';
 import { isBox, itemKind, storedRect, type Rect } from './items';
 
 export type Pt = { x: number; y: number };
@@ -502,6 +502,21 @@ export function nodeRects(items: Item[]): Map<string, Rect> {
 /** Boxes the assistant should read, without connector items. */
 export function boxesForAsk(items: Item[]): Item[] {
   return items.filter((i) => itemKind(i) !== 'connector');
+}
+
+export function toAskBox(i: Item): AskBox {
+  const out: AskBox = {
+    id: i.id,
+    text: i.text,
+    x: i.x,
+    y: i.y,
+    by: i.by,
+  };
+  if (i.url) out.url = i.url;
+  if (i.meta?.title) out.title = i.meta.title;
+  if (i.meta?.description) out.description = i.meta.description;
+  if (i.caption) out.caption = i.caption;
+  return out;
 }
 
 /** Connector endpoints as edges the assistant can quote. */

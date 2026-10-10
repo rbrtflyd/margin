@@ -145,11 +145,23 @@ export type AskEdge = {
   label: string;
 };
 
+export type AskBox = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  by: Author;
+  url?: string;
+  title?: string;
+  description?: string;
+  caption?: string;
+};
+
 /** What the client sends to /api/ask. */
 export interface AskRequest {
   question: string;
   boardName: string;
-  items: { id: string; text: string; x: number; y: number; by: Author }[];
+  items: AskBox[];
   edges: AskEdge[];
   selectedIds: string[];
   history: { q: string; a: string }[];
