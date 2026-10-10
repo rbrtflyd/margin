@@ -3,13 +3,16 @@ import {
   applyResize,
   boundsOf,
   FILLS,
+  fontPx,
   forgetSize,
   mapBox,
   paintOf,
   rememberSize,
   scaleItem,
   STICKY_SIZE,
+  STICKY_WIDE,
   strokeOf,
+  textAlign,
   textInk,
 } from './items';
 import type { Item } from './types';
@@ -179,5 +182,24 @@ describe('textInk', () => {
     expect(textInk(box({ id: 'c1', by: 'claude', textColor: 'rose' }))).toBe(
       FILLS.sky.ink,
     );
+  });
+});
+
+describe('font and align', () => {
+  it('maps fontSize tokens to pixels and defaults to m', () => {
+    expect(fontPx(box({ id: 't1' }))).toBe(14);
+    expect(fontPx(box({ id: 't1', fontSize: 'xl' }))).toBe(24);
+  });
+
+  it('centers shapes and left-aligns text by default', () => {
+    expect(textAlign(box({ id: 't1' }))).toBe('left');
+    expect(textAlign(box({ id: 's1', kind: 'shape' }))).toBe('center');
+    expect(textAlign(box({ id: 's1', kind: 'shape', align: 'left' }))).toBe(
+      'left',
+    );
+  });
+
+  it('defines a wide sticky preset', () => {
+    expect(STICKY_WIDE).toBe(320);
   });
 });

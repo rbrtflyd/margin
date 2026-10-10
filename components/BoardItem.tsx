@@ -1,21 +1,24 @@
 'use client';
 
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { Handle, Item, ShapeKind } from '@/lib/types';
 import {
+  fontPx,
   itemKind,
   paintOf,
   SHAPE_SIZE,
   STICKY_SIZE,
   strokeOf,
+  textAlign,
   textInk,
 } from '@/lib/items';
 import { Markdown } from '@/lib/markdown';
 import { shapePad, shapePaths } from '@/lib/shapes';
+import { FORMAT_EVENT, wrapSelection, type FormatKind } from '@/lib/format';
 
 export const HANDLE_POS: Record<
   Handle,
@@ -149,9 +152,56 @@ export function Editor({
     onDone(live.current);
   }
 
+  function applyFormat(kind: FormatKind) {
+    const el = ref.current;
+    if (!el) return;
+    const text = el.innerText.replace(/\r/g, '');
+    const sel = window.getSelection();
+    let a = caretOffset(el);
+    let b = a;
+    if (sel && sel.rangeCount) {
+      const r = sel.getRangeAt(0);
+      const pre = r.cloneRange();
+      pre.selectNodeContents(el);
+      pre.setEnd(r.startContainer, r.startOffset);
+      a = pre.toString().length;
+      b = a + r.toString().length;
+    }
+    const next = wrapSelection(text, a, b, kind);
+    el.textContent = next.text;
+    live.current = next.text;
+    setRange(el, next.start, next.end);
+  }
+
+  useLayoutEffect(() => {
+    function onFormat(e: Event) {
+      const kind = (e as CustomEvent<FormatKind>).detail;
+      if (kind) applyFormat(kind);
+    }
+    window.addEventListener(FORMAT_EVENT, onFormat);
+    return () => window.removeEventListener(FORMAT_EVENT, onFormat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function onKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     e.stopPropagation();
     const el = e.currentTarget;
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      applyFormat('bold');
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'i') {
+      e.preventDefault();
+      applyFormat('italic');
+      return;
+    }
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'x') {
+      e.preventDefault();
+      applyFormat('strike');
+      return;
+    }
     if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
       e.preventDefault();
       el.blur();
@@ -242,6 +292,72 @@ function setCaret(el: HTMLElement, offset: number) {
   sel.addRange(range);
 }
 
+function setRange(el: HTMLElement, start: number, end: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const point = (offset: number) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let n = walker.nextNode();
+    let left = offset;
+    while (n) {
+      const len = n.textContent?.length ?? 0;
+      if (left <= len) return { n, off: Math.max(0, left) };
+      left -= len;
+      n = walker.nextNode();
+    }
+    return null;
+  };
+  const a = point(start);
+  const b = point(end);
+  const range = document.createRange();
+  if (a) range.setStart(a.n, a.off);
+  else range.selectNodeContents(el);
+  if (b) range.setEnd(b.n, b.off);
+  else range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function FitText({
+  maxPx,
+  height,
+  children,
+}: {
+  maxPx: number;
+  height: number;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      let size = maxPx;
+      el.style.fontSize = size + 'px';
+      while (size > 10 && el.scrollHeight > el.clientHeight + 1) {
+        size -= 1;
+        el.style.fontSize = size + 'px';
+      }
+    };
+    fit();
+    const obs = new MutationObserver(fit);
+    obs.observe(el, { subtree: true, characterData: true, childList: true });
+    el.addEventListener('input', fit);
+    return () => {
+      obs.disconnect();
+      el.removeEventListener('input', fit);
+    };
+  }, [maxPx, height]);
+  return (
+    <div
+      ref={ref}
+      className="h-full overflow-hidden"
+      style={{ fontSize: maxPx, height }}>
+      {children}
+    </div>
+  );
+}
+
 interface Props {
   item: Item;
   selected: boolean;
@@ -273,30 +389,40 @@ export default function BoardItem(props: Props) {
     it.w ??
     (kind === 'sticky' ? STICKY_SIZE : kind === 'shape' ? SHAPE_SIZE : undefined);
   const h =
-    kind === 'shape' ? (it.h ?? SHAPE_SIZE) : undefined;
-  const minH =
-    kind === 'sticky' ? (it.h ?? STICKY_SIZE) : undefined;
+    kind === 'shape'
+      ? (it.h ?? SHAPE_SIZE)
+      : kind === 'sticky'
+        ? (it.h ?? STICKY_SIZE)
+        : undefined;
   const round = kind === 'sticky' ? 'rounded-sm' : 'rounded-md';
   const shapeW = kind === 'shape' ? (w ?? SHAPE_SIZE) : 0;
   const shapeH = kind === 'shape' ? (h ?? SHAPE_SIZE) : 0;
+  const px = fontPx(it);
+  const align = textAlign(it);
+  const alignClass =
+    align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left';
 
-  const body =
+  const rawBody =
     props.editing ? (
       <Editor
         initial={it.text}
         onDone={(text) => props.onEditCommit(it.id, text)}
         label={kind === 'sticky' ? 'Sticky note' : kind === 'shape' ? 'Shape' : 'Text box'}
-        className={
-          kind === 'shape'
-            ? 'w-full text-center'
-            : kind === 'sticky'
-              ? 'w-full'
-              : ''
-        }
+        className={'w-full ' + alignClass}
       />
     ) : it.text ? (
       <Markdown text={it.text} />
     ) : null;
+  const body =
+    kind === 'sticky' && rawBody && h ? (
+      <FitText
+        maxPx={px}
+        height={Math.max(20, h - 20)}>
+        {rawBody}
+      </FitText>
+    ) : (
+      rawBody
+    );
 
   return (
     <div
@@ -312,7 +438,16 @@ export default function BoardItem(props: Props) {
         (kind === 'sticky'
           ? ' px-3 py-2.5 shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
           : '') +
-        (kind === 'shape' ? ' flex items-center justify-center text-center' : '') +
+        (kind === 'shape'
+          ? ' flex items-center ' +
+            (align === 'center'
+              ? 'justify-center'
+              : align === 'right'
+                ? 'justify-end'
+                : 'justify-start') +
+            ' ' +
+            alignClass
+          : ' ' + alignClass) +
         (fill.claude && kind === 'text' ? ' text-base text-sky-800' : '') +
         (props.selected ? ' z-1' : '') +
         (off ? ' opacity-85' : '') +
@@ -325,7 +460,7 @@ export default function BoardItem(props: Props) {
         top: it.y + (off ? off.y : 0),
         width: w,
         height: h,
-        minHeight: minH,
+        fontSize: kind === 'sticky' ? undefined : px,
         maxWidth: kind === 'text' && it.w ? 'none' : undefined,
         color:
           kind === 'sticky' || kind === 'shape' || kind === 'text'

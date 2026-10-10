@@ -1,4 +1,4 @@
-import type { Fill, ShapeKind } from '@/lib/types';
+import type { ShapeKind } from '@/lib/types';
 import type { Drag, InteractionCtx } from './types';
 
 export function startPlace(
@@ -38,20 +38,28 @@ export function endPlace(
   ctx.setPlaceBox(null);
   const p = ctx.propsRef.current;
   if (d.moved) {
+    const t = p.textStyle;
     p.onCreate({
       kind: 'text',
       x: Math.min(d.wx, w.x),
       y: Math.min(d.wy, w.y),
       w: Math.max(40, Math.abs(w.x - d.wx)),
       text: '',
+      fontSize: t.fontSize,
+      align: t.align,
+      textColor: t.textColor,
       edit: true,
     });
   } else {
+    const t = p.textStyle;
     p.onCreate({
       kind: 'text',
       x: d.wx,
       y: d.wy,
       text: '',
+      fontSize: t.fontSize,
+      align: t.align,
+      textColor: t.textColor,
       edit: true,
     });
   }
@@ -62,12 +70,16 @@ export function placeSticky(
   world: { x: number; y: number },
 ) {
   const p = ctx.propsRef.current;
+  const s = p.stickyStyle;
   p.onCreate({
     kind: 'sticky',
     x: world.x - 80,
     y: world.y - 80,
     w: 160,
-    fill: p.stickyFill as Fill,
+    fill: s.fill && s.fill !== 'none' ? s.fill : 'amber',
+    fontSize: s.fontSize,
+    align: s.align,
+    textColor: s.textColor,
     text: '',
     edit: true,
   });
@@ -92,6 +104,8 @@ export function placeShape(
     strokeWidth: s.strokeWidth,
     strokeStyle: s.strokeStyle,
     textColor: s.textColor,
+    fontSize: s.fontSize,
+    align: s.align,
     text: '',
     edit: true,
   });

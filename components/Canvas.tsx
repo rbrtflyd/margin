@@ -8,7 +8,6 @@ import type {
 } from 'react';
 import type {
   Anchor,
-  Fill,
   Handle,
   Item,
   Tool,
@@ -38,6 +37,7 @@ import {
 import BoardItem, { BOX_HANDLES, Editor, HANDLE_POS } from './BoardItem';
 import SelectionBar from './SelectionBar';
 import type { ArrangeOp, Guides } from '@/lib/align';
+import type { FormatKind } from '@/lib/format';
 import type {
   CreateDraft,
   Drag,
@@ -74,8 +74,9 @@ interface Props {
   editingId: string | null;
   flash: string[];
   tool: Tool;
-  stickyFill: Fill;
+  stickyStyle: ItemStyle;
   shapeStyle: ItemStyle;
+  textStyle: ItemStyle;
   apiRef: RefObject<CanvasApi | null>;
   onSelect(ids: Set<string>): void;
   onMove(ids: string[], dx: number, dy: number): void;
@@ -87,6 +88,7 @@ interface Props {
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onToggleLock(): void;
   onArrange(op: ArrangeOp): void;
+  onFormat(kind: FormatKind): void;
   snapGrid: boolean;
   onEditStart(id: string): void;
   onEditCommit(id: string, text: string): void;
@@ -688,7 +690,7 @@ export default function Canvas(props: Props) {
   );
   let barLeft = 0;
   let barTop = 0;
-  if (shown.size && !props.editingId) {
+  if (shown.size) {
     if (union) {
       barLeft = (union.x + union.w / 2) * view.k + view.x;
       barTop = union.y * view.k + view.y - 8;
@@ -963,11 +965,7 @@ export default function Canvas(props: Props) {
           }}
         />
       )}
-      {shown.size > 0 &&
-        !props.editingId &&
-        !dragging &&
-        !resize &&
-        !draftLine && (
+      {shown.size > 0 && !dragging && !resize && !draftLine && (
           <SelectionBar
             items={selectedItems}
             left={barLeft}
@@ -975,6 +973,7 @@ export default function Canvas(props: Props) {
             onPatchAll={props.onPatchAll}
             onToggleLock={props.onToggleLock}
             onArrange={props.onArrange}
+            onFormat={props.onFormat}
           />
         )}
       {guides &&

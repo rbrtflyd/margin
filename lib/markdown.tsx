@@ -2,11 +2,25 @@ import type { ReactNode } from 'react';
 
 function Inline({ text }: { text: string }) {
   const parts = text.split(
-    /(\*\*[^*]+?\*\*|\*[^*]+?\*|`[^`]+?`|~[^~]+?~)/g,
+    /(\*\*[^*]+?\*\*|\[[^\]]+?\]\([^)]+?\)|\*[^*]+?\*|`[^`]+?`|~[^~]+?~)/g,
   );
   return parts.map((p, i) => {
     if (p.startsWith('**') && p.endsWith('**') && p.length >= 4) {
       return <strong key={i}>{p.slice(2, -2)}</strong>;
+    }
+    const link = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      return (
+        <a
+          key={i}
+          href={link[2]}
+          target="_blank"
+          rel="noreferrer"
+          className="underline decoration-zinc-400 underline-offset-2 hover:decoration-zinc-700"
+          onPointerDown={(e) => e.stopPropagation()}>
+          {link[1]}
+        </a>
+      );
     }
     if (p.startsWith('*') && p.endsWith('*') && p.length >= 2) {
       return <em key={i}>{p.slice(1, -1)}</em>;

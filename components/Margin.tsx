@@ -8,7 +8,6 @@ import type {
   AskTurn,
   Author,
   Board,
-  Fill,
   Handle,
   Item,
   Store,
@@ -16,12 +15,14 @@ import type {
   User,
   View,
 } from '@/lib/types';
+import { FORMAT_EVENT, wrapSelection, type FormatKind } from '@/lib/format';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import {
   compactItem,
   isBox,
   itemKind,
   scaleItem,
+  STICKY_WIDE,
   styleOf,
   type ItemStyle,
   type Rect,
@@ -77,8 +78,9 @@ export default function Margin({ user }: { user: User | null }) {
   const [zoom, setZoom] = useState(1);
   const [snapGrid, setSnapGrid] = useState(false);
   const [tool, setTool] = useState<Tool>({ type: 'select' });
-  const [stickyFill, setStickyFill] = useState<Fill>('amber');
+  const [stickyStyle, setStickyStyle] = useState<ItemStyle>({ fill: 'amber' });
   const [shapeStyle, setShapeStyle] = useState<ItemStyle>({ fill: 'white' });
+  const [textStyle, setTextStyle] = useState<ItemStyle>({});
   const copiedStyle = useRef<ItemStyle | null>(null);
   const canvasApi = useRef<CanvasApi | null>(null);
   const histories = useRef(new Map<string, History>());
@@ -355,11 +357,24 @@ export default function Margin({ user }: { user: User | null }) {
 
   // ----- items -----
 
+  const rememberStyle = (next: Item) => {
+    const k = itemKind(next);
+    const style = styleOf(next);
+    if (k === 'sticky') setStickyStyle((s) => ({ ...s, ...style }));
+    else if (k === 'shape') setShapeStyle((s) => ({ ...s, ...style }));
+    else if (k === 'text') setTextStyle((s) => ({ ...s, ...style }));
+  };
+
+  const lastFor = (kind: Item['kind']) =>
+    kind === 'sticky' ? stickyStyle : kind === 'shape' ? shapeStyle : textStyle;
+
   const createItem = (draft: CreateDraft) => {
     const b = currentBoard();
     if (!b) return '';
     const t = nowISO();
     const kind = draft.kind ?? 'text';
+    const last = lastFor(kind);
+    const boxKind = kind === 'text' || kind === 'sticky' || kind === 'shape';
     const item = compactItem({
       id: uid(kind === 'text' ? 't_' : kind[0] + '_'),
       x: Math.round(draft.x),
@@ -372,18 +387,20 @@ export default function Margin({ user }: { user: User | null }) {
       w: draft.w,
       h: draft.h,
       shape: draft.shape,
-      fill: draft.fill,
-      stroke: draft.stroke,
-      strokeWidth: draft.strokeWidth,
-      strokeStyle: draft.strokeStyle,
-      textColor: draft.textColor,
+      fill: draft.fill ?? (kind === 'sticky' || kind === 'shape' ? last.fill : undefined),
+      stroke: draft.stroke ?? (kind === 'shape' ? last.stroke : undefined),
+      strokeWidth:
+        draft.strokeWidth ?? (kind === 'shape' ? last.strokeWidth : undefined),
+      strokeStyle:
+        draft.strokeStyle ?? (kind === 'shape' ? last.strokeStyle : undefined),
+      textColor: boxKind ? (draft.textColor ?? last.textColor) : undefined,
+      fontSize: boxKind ? (draft.fontSize ?? last.fontSize) : undefined,
+      align: boxKind ? (draft.align ?? last.align) : undefined,
       route: draft.route,
       start: draft.start,
       end: draft.end,
     });
-    if (item.fill && item.fill !== 'none' && kind === 'sticky')
-      setStickyFill(item.fill);
-    if (kind === 'shape') setShapeStyle((s) => ({ ...s, ...styleOf(item) }));
+    rememberStyle(item);
     const startEdit = draft.edit === true || (draft.edit !== false && kind !== 'connector' && !item.text);
     if (startEdit) {
       editSnapshot.current = { id: item.id, items: b.items, isNew: true };
@@ -596,10 +613,7 @@ export default function Margin({ user }: { user: User | null }) {
       items.map((i) => {
         if (i.id !== id) return i;
         const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
-        if (next.fill && next.fill !== 'none' && itemKind(next) === 'sticky')
-          setStickyFill(next.fill);
-        if (itemKind(next) === 'shape')
-          setShapeStyle((s) => ({ ...s, ...styleOf(next) }));
+        rememberStyle(next);
         return next;
       }),
     );
@@ -630,15 +644,38 @@ export default function Margin({ user }: { user: User | null }) {
           )
             return i;
           if (patch.route && kind !== 'connector') return i;
+          if (
+            (patch.fontSize !== undefined || patch.align !== undefined) &&
+            !isBox(i)
+          )
+            return i;
+          if (patch.w === STICKY_WIDE && patch.h === undefined && kind !== 'sticky')
+            return i;
           const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
-          if (next.fill && next.fill !== 'none' && kind === 'sticky')
-            setStickyFill(next.fill);
-          if (kind === 'shape')
-            setShapeStyle((s) => ({ ...s, ...styleOf(next) }));
+          rememberStyle(next);
           return next;
         }),
       true,
       coalesceKey,
+    );
+  };
+
+  const formatSelected = (kind: FormatKind) => {
+    if (editingId) {
+      window.dispatchEvent(new CustomEvent(FORMAT_EVENT, { detail: kind }));
+      return;
+    }
+    const sel = selectedRef.current;
+    if (!sel.size) return;
+    commitItems(
+      (items) =>
+        items.map((i) => {
+          if (!sel.has(i.id) || !isBox(i)) return i;
+          const next = wrapSelection(i.text, 0, i.text.length, kind);
+          return compactItem({ ...i, text: next.text, editedAt: nowISO() });
+        }),
+      true,
+      'format',
     );
   };
 
@@ -1063,8 +1100,9 @@ export default function Margin({ user }: { user: User | null }) {
         flash={flash}
         apiRef={canvasApi}
         tool={tool}
-        stickyFill={stickyFill}
+        stickyStyle={stickyStyle}
         shapeStyle={shapeStyle}
+        textStyle={textStyle}
         onSelect={setSelected}
         onMove={moveItems}
         onDuplicateMove={duplicateItems}
@@ -1075,6 +1113,7 @@ export default function Margin({ user }: { user: User | null }) {
         onPatchAll={patchSelected}
         onToggleLock={toggleLockSelected}
         onArrange={arrangeSelected}
+        onFormat={formatSelected}
         snapGrid={snapGrid}
         onEditStart={startEdit}
         onEditCommit={commitEdit}

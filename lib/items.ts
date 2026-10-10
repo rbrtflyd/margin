@@ -1,5 +1,7 @@
 import type {
+  Align,
   Fill,
+  FontSize,
   Handle,
   Item,
   ItemKind,
@@ -10,8 +12,24 @@ import type {
 } from './types';
 
 export const STICKY_SIZE = 160;
+export const STICKY_WIDE = 320;
 export const SHAPE_SIZE = 140;
 export const MIN_SIZE = 40;
+export const FONT_PX: Record<FontSize, number> = {
+  s: 12,
+  m: 14,
+  l: 18,
+  xl: 24,
+};
+
+export function fontPx(item: Item): number {
+  return FONT_PX[item.fontSize ?? 'm'];
+}
+
+export function textAlign(item: Item): Align {
+  if (item.align) return item.align;
+  return itemKind(item) === 'shape' ? 'center' : 'left';
+}
 
 export function itemKind(it: Pick<Item, 'kind'>): ItemKind {
   return it.kind ?? 'text';
@@ -98,6 +116,8 @@ export type ItemStyle = {
   strokeWidth?: StrokeWidth;
   strokeStyle?: StrokeStyle;
   textColor?: Fill | 'ink';
+  fontSize?: FontSize;
+  align?: Align;
 };
 
 export function styleOf(item: Item): ItemStyle {
@@ -107,6 +127,8 @@ export function styleOf(item: Item): ItemStyle {
   if (item.strokeWidth) out.strokeWidth = item.strokeWidth;
   if (item.strokeStyle) out.strokeStyle = item.strokeStyle;
   if (item.textColor) out.textColor = item.textColor;
+  if (item.fontSize) out.fontSize = item.fontSize;
+  if (item.align) out.align = item.align;
   return out;
 }
 

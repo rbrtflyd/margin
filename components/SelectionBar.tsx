@@ -1,8 +1,18 @@
 'use client';
 
 import type { ArrangeOp } from '@/lib/align';
-import type { Fill, Item, Route, Stroke, StrokeStyle, StrokeWidth } from '@/lib/types';
-import { FILL_ORDER, FILLS, INK, isBox, itemKind } from '@/lib/items';
+import type {
+  Align,
+  Fill,
+  FontSize,
+  Item,
+  Route,
+  Stroke,
+  StrokeStyle,
+  StrokeWidth,
+} from '@/lib/types';
+import { FILL_ORDER, FILLS, INK, isBox, itemKind, STICKY_WIDE } from '@/lib/items';
+import type { FormatKind } from '@/lib/format';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +27,7 @@ interface Props {
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onToggleLock(): void;
   onArrange(op: ArrangeOp): void;
+  onFormat(kind: FormatKind): void;
 }
 
 function effectiveFill(it: Item): Fill | 'none' {
@@ -355,6 +366,92 @@ export default function SelectionBar(props: Props) {
               Tidy
             </button>
           </>
+        )}
+        {textables.length > 0 && (
+          <>
+            <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden="true" />
+            {(['s', 'm', 'l', 'xl'] as FontSize[]).map((size) => (
+              <button
+                key={size}
+                type="button"
+                title={size.toUpperCase()}
+                aria-label={'Font ' + size.toUpperCase()}
+                aria-pressed={
+                  shared(textables, (i) => i.fontSize ?? 'm') === size
+                }
+                className={pill}
+                onClick={() => props.onPatchAll({ fontSize: size }, 'font')}>
+                {size.toUpperCase()}
+              </button>
+            ))}
+            {(['left', 'center', 'right'] as Align[]).map((al, i) => (
+              <button
+                key={al}
+                type="button"
+                title={al}
+                aria-label={al}
+                aria-pressed={
+                  shared(textables, (it) => it.align ?? (itemKind(it) === 'shape' ? 'center' : 'left')) ===
+                  al
+                }
+                className={pill}
+                onClick={() => props.onPatchAll({ align: al }, 'align')}>
+                {['L', 'C', 'R'][i]}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={pill}
+              aria-label="Bold"
+              title="Bold"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => props.onFormat('bold')}>
+              B
+            </button>
+            <button
+              type="button"
+              className={pill}
+              aria-label="Italic"
+              title="Italic"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => props.onFormat('italic')}>
+              I
+            </button>
+            <button
+              type="button"
+              className={pill}
+              aria-label="Strikethrough"
+              title="Strikethrough"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => props.onFormat('strike')}>
+              S
+            </button>
+            <button
+              type="button"
+              className={pill}
+              aria-label="Link"
+              title="Link"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => props.onFormat('link')}>
+              Link
+            </button>
+          </>
+        )}
+        {props.items.some((i) => itemKind(i) === 'sticky') && (
+          <button
+            type="button"
+            className={pill}
+            aria-pressed={
+              shared(
+                props.items.filter((i) => itemKind(i) === 'sticky'),
+                (i) => i.w ?? 160,
+              ) === STICKY_WIDE
+            }
+            aria-label="Wide"
+            title="Wide sticky"
+            onClick={() => props.onPatchAll({ w: STICKY_WIDE })}>
+            Wide
+          </button>
         )}
         {(fillables.length > 0 ||
           routes.length > 0 ||

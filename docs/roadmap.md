@@ -19,7 +19,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 1D | Align, distribute, smart guides, grid | 0C | done |
 | 2A | Shapes rendered as SVG, more shapes | 0D | done |
 | 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | done |
-| 2C | Text formatting and sticky sizing | 0D | open |
+| 2C | Text formatting and sticky sizing | 0D | done |
 | 3A | Connection dots and quick-create | 0B, 0C | open |
 | 3B | Arrowheads, curves, auto sides, elbow bends | 0D | open |
 | 3C | Connector label editing | 3B | open |
@@ -178,10 +178,10 @@ Diamonds and triangles are cut out with a CSS `clipPath` today, and a clip path 
 
 ### 2C. Text formatting and sticky sizing
 
-- [ ] Font size (S, M, L, XL) and alignment for text, stickies, and shapes.
-- [ ] Bold, italic, strikethrough, and links. Keep markdown as the storage format: toolbar buttons and Cmd+B and Cmd+I wrap the selection in markers, and `lib/markdown.tsx` renders them. Don't add a rich-text model.
-- [ ] Text in a sticky shrinks automatically as it fills, as in FigJam.
-- [ ] Add a wide sticky size, as a preset in the selection bar.
+- [x] Font size (S, M, L, XL) and alignment for text, stickies, and shapes.
+- [x] Bold, italic, strikethrough, and links. Keep markdown as the storage format: toolbar buttons and Cmd+B and Cmd+I wrap the selection in markers, and `lib/markdown.tsx` renders them. Don't add a rich-text model.
+- [x] Text in a sticky shrinks automatically as it fills, as in FigJam.
+- [x] Add a wide sticky size, as a preset in the selection bar.
 
 ## Phase 3: Connectors and flowcharts
 

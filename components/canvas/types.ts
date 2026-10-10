@@ -1,8 +1,10 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import type {
+  Align,
   Anchor,
   Author,
   Fill,
+  FontSize,
   Handle,
   Item,
   ItemKind,
@@ -32,6 +34,8 @@ export type CreateDraft = {
   strokeWidth?: StrokeWidth;
   strokeStyle?: StrokeStyle;
   textColor?: Fill | 'ink';
+  fontSize?: FontSize;
+  align?: Align;
   route?: Route;
   start?: Anchor;
   end?: Anchor;
@@ -109,8 +113,9 @@ export type CanvasProps = {
   items: Item[];
   selected: Set<string>;
   tool: Tool;
-  stickyFill: Fill;
+  stickyStyle: ItemStyle;
   shapeStyle: ItemStyle;
+  textStyle: ItemStyle;
   onSelect(ids: Set<string>): void;
   onMove(ids: string[], dx: number, dy: number): void;
   onDuplicateMove(ids: string[], dx: number, dy: number): void;
