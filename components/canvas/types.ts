@@ -12,6 +12,7 @@ import type {
   View,
 } from '@/lib/types';
 import type { Rect } from '@/lib/items';
+import type { ArrangeOp, Guides } from '@/lib/align';
 import type { Pt } from '@/lib/connectors';
 
 export type CreateDraft = {
@@ -111,6 +112,8 @@ export type CanvasProps = {
   onPatch(id: string, patch: Partial<Item>): void;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onToggleLock(): void;
+  onArrange(op: ArrangeOp): void;
+  snapGrid: boolean;
 };
 
 export type InteractionCtx = {
@@ -141,6 +144,7 @@ export type InteractionCtx = {
     SetStateAction<{ x0: number; y0: number; x1: number; y1: number } | null>
   >;
   setPreview: Dispatch<SetStateAction<Set<string> | null>>;
+  setGuides: Dispatch<SetStateAction<Guides | null>>;
   toWorld(clientX: number, clientY: number): Pt;
   currentRects(): Map<string, Rect>;
   rootRect(): DOMRect | null;

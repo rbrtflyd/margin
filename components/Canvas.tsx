@@ -36,6 +36,7 @@ import {
 } from '@/lib/connectors';
 import BoardItem, { BOX_HANDLES, Editor, HANDLE_POS } from './BoardItem';
 import SelectionBar from './SelectionBar';
+import type { ArrangeOp, Guides } from '@/lib/align';
 import type {
   CreateDraft,
   Drag,
@@ -83,6 +84,8 @@ interface Props {
   onPatch(id: string, patch: Partial<Item>): void;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onToggleLock(): void;
+  onArrange(op: ArrangeOp): void;
+  snapGrid: boolean;
   onEditStart(id: string): void;
   onEditCommit(id: string, text: string): void;
   onViewChange(v: View): void;
@@ -128,6 +131,7 @@ export default function Canvas(props: Props) {
   } | null>(null);
   const [resize, setResize] = useState<ResizeLive | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [guides, setGuides] = useState<Guides | null>(null);
   const resizeRef = useRef(resize);
   resizeRef.current = resize;
   const [endDraft, setEndDraft] = useState<{
@@ -222,6 +226,7 @@ export default function Canvas(props: Props) {
     setEndDraft,
     setMarquee,
     setPreview,
+    setGuides,
     toWorld,
     currentRects,
     rootRect,
@@ -967,8 +972,38 @@ export default function Canvas(props: Props) {
             top={barTop}
             onPatchAll={props.onPatchAll}
             onToggleLock={props.onToggleLock}
+            onArrange={props.onArrange}
           />
         )}
+      {guides &&
+        guides.v.map((x) => (
+          <div
+            key={'v' + x}
+            className="pointer-events-none absolute top-0 z-30 w-px bg-sky-400"
+            style={{ left: x * view.k + view.x, height: '100%' }}
+          />
+        ))}
+      {guides &&
+        guides.h.map((y) => (
+          <div
+            key={'h' + y}
+            className="pointer-events-none absolute left-0 z-30 h-px bg-sky-400"
+            style={{ top: y * view.k + view.y, width: '100%' }}
+          />
+        ))}
+      {guides &&
+        guides.ticks.map((t, i) => (
+          <div
+            key={'t' + i}
+            className="pointer-events-none absolute z-30 bg-sky-400"
+            style={{
+              left: t.x * view.k + view.x,
+              top: t.y * view.k + view.y,
+              width: t.w ? Math.max(1, t.w * view.k) : 1,
+              height: t.h ? Math.max(1, t.h * view.k) : 1,
+            }}
+          />
+        ))}
     </div>
   );
 }

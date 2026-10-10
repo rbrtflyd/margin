@@ -42,6 +42,8 @@ interface Props {
   onTool(tool: Tool): void;
   onAsk(): void;
   onFit(): void;
+  snapGrid: boolean;
+  onSnapGrid(on: boolean): void;
 }
 
 export default function CanvasToolbar(props: Props) {
@@ -174,6 +176,14 @@ export default function CanvasToolbar(props: Props) {
         <kbd className={kbd}>&#8984;K</kbd>
       </button>
       <span className="mx-1 h-5 w-px shrink-0 bg-stone-100" />
+      <button
+        type="button"
+        className={btn}
+        aria-pressed={props.snapGrid}
+        title="Snap to grid"
+        onClick={() => props.onSnapGrid(!props.snapGrid)}>
+        Grid
+      </button>
       <button
         type="button"
         className="inline-flex min-w-[54px] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 font-mono text-xs font-medium whitespace-nowrap text-zinc-500 tabular-nums hover:bg-zinc-900/10 max-sm:px-2"

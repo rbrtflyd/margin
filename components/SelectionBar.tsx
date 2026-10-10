@@ -1,7 +1,8 @@
 'use client';
 
+import type { ArrangeOp } from '@/lib/align';
 import type { Fill, Item, Route } from '@/lib/types';
-import { FILL_ORDER, FILLS, itemKind } from '@/lib/items';
+import { FILL_ORDER, FILLS, isBox, itemKind } from '@/lib/items';
 
 interface Props {
   items: Item[];
@@ -9,6 +10,7 @@ interface Props {
   top: number;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
   onToggleLock(): void;
+  onArrange(op: ArrangeOp): void;
 }
 
 function effectiveFill(it: Item): Fill {
@@ -80,7 +82,60 @@ export default function SelectionBar(props: Props) {
             </button>
           </>
         )}
-        {(fillables.length > 0 || routes.length > 0) && (
+        {props.items.filter(isBox).length >= 2 && (
+          <>
+            {(fillables.length > 0 || routes.length > 0) && (
+              <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden="true" />
+            )}
+            {(
+              [
+                ['left', 'Left'],
+                ['center', 'Center'],
+                ['right', 'Right'],
+                ['top', 'Top'],
+                ['middle', 'Middle'],
+                ['bottom', 'Bottom'],
+              ] as const
+            ).map(([op, label]) => (
+              <button
+                key={op}
+                type="button"
+                title={label}
+                aria-label={label}
+                className="rounded-lg border-0 bg-transparent px-1.5 py-1 text-[12px] hover:bg-zinc-900/10"
+                onClick={() => props.onArrange(op)}>
+                {label[0]}
+              </button>
+            ))}
+            <button
+              type="button"
+              title="Distribute horizontally"
+              aria-label="Distribute horizontally"
+              className="rounded-lg border-0 bg-transparent px-1.5 py-1 text-[12px] hover:bg-zinc-900/10"
+              onClick={() => props.onArrange('distribute-h')}>
+              H
+            </button>
+            <button
+              type="button"
+              title="Distribute vertically"
+              aria-label="Distribute vertically"
+              className="rounded-lg border-0 bg-transparent px-1.5 py-1 text-[12px] hover:bg-zinc-900/10"
+              onClick={() => props.onArrange('distribute-v')}>
+              V
+            </button>
+            <button
+              type="button"
+              title="Tidy up"
+              aria-label="Tidy up"
+              className="rounded-lg border-0 bg-transparent px-1.5 py-1 text-[12px] hover:bg-zinc-900/10"
+              onClick={() => props.onArrange('tidy')}>
+              Tidy
+            </button>
+          </>
+        )}
+        {(fillables.length > 0 ||
+          routes.length > 0 ||
+          props.items.filter(isBox).length >= 2) && (
           <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden="true" />
         )}
         <button

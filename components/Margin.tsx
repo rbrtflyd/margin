@@ -28,6 +28,7 @@ import {
   shiftItem,
   unionBounds,
 } from '@/lib/clipboard';
+import { arrangeItems, GRID, type ArrangeOp } from '@/lib/align';
 import { restack, unlockedIds, type RestackDir } from '@/lib/stack';
 import Canvas from './Canvas';
 import type { CanvasApi, CreateDraft, Pt } from './Canvas';
@@ -66,6 +67,7 @@ export default function Margin({ user }: { user: User | null }) {
   const [renameOnOpen, setRenameOnOpen] = useState(false);
   const [flash, setFlash] = useState<string[]>([]);
   const [zoom, setZoom] = useState(1);
+  const [snapGrid, setSnapGrid] = useState(false);
   const [tool, setTool] = useState<Tool>({ type: 'select' });
   const [stickyFill, setStickyFill] = useState<Fill>('amber');
   const canvasApi = useRef<CanvasApi | null>(null);
@@ -606,6 +608,12 @@ export default function Margin({ user }: { user: User | null }) {
     );
   };
 
+  const arrangeSelected = (op: ArrangeOp) => {
+    const sel = selectedRef.current;
+    if (!sel.size) return;
+    commitItems((items) => arrangeItems(items, sel, op));
+  };
+
   const deleteSelected = () => {
     const sel = selectedRef.current;
     if (!sel.size) return;
@@ -765,6 +773,8 @@ export default function Margin({ user }: { user: User | null }) {
   selectedRef.current = selected;
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+  const snapGridRef = useRef(snapGrid);
+  snapGridRef.current = snapGrid;
   const actions = useRef({
     deleteSelected,
     undo,
@@ -875,7 +885,11 @@ export default function Margin({ user }: { user: User | null }) {
       ) {
         if (!selectedRef.current.size) return;
         e.preventDefault();
-        const step = (e.shiftKey ? 10 : 1) / (zoomRef.current || 1);
+        const step = snapGridRef.current
+          ? e.shiftKey
+            ? GRID * 10
+            : GRID
+          : (e.shiftKey ? 10 : 1) / (zoomRef.current || 1);
         const dx =
           e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
         const dy =
@@ -997,6 +1011,8 @@ export default function Margin({ user }: { user: User | null }) {
         onPatch={patchItem}
         onPatchAll={patchSelected}
         onToggleLock={toggleLockSelected}
+        onArrange={arrangeSelected}
+        snapGrid={snapGrid}
         onEditStart={startEdit}
         onEditCommit={commitEdit}
         onViewChange={(v: View) => patchBoard(board.id, { view: v })}
@@ -1042,6 +1058,8 @@ export default function Margin({ user }: { user: User | null }) {
         onTool={setTool}
         onAsk={() => setAskOpen((o) => !o)}
         onFit={() => canvasApi.current?.fit()}
+        snapGrid={snapGrid}
+        onSnapGrid={setSnapGrid}
       />
 
       <AskPanel

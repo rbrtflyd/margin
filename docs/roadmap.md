@@ -16,7 +16,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 1A | Duplicate, nudge, copy and paste items | 0B | done |
 | 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | done |
 | 1C | Stacking order, lock, group | 0B, 0D | done |
-| 1D | Align, distribute, smart guides, grid | 0C | open |
+| 1D | Align, distribute, smart guides, grid | 0C | done |
 | 2A | Shapes rendered as SVG, more shapes | 0D | open |
 | 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | open |
 | 2C | Text formatting and sticky sizing | 0D | open |
@@ -152,9 +152,9 @@ Done when `npm test` passes, and holding an arrow key creates one undo step inst
 
 ### 1D. Align, distribute, smart guides, grid
 
-- [ ] In the multi-select bar: align left, center, or right, align top, middle, or bottom, distribute horizontally or vertically, and tidy up (arrange in a grid).
-- [ ] Smart guides: while moving or resizing, snap edges and centers to nearby items within 6 screen pixels, draw guide lines, and show equal-spacing hints. Hold Cmd to turn snapping off.
-- [ ] Optional dot grid with a snap-to-grid toggle. Keep it off by default.
+- [x] In the multi-select bar: align left, center, or right, align top, middle, or bottom, distribute horizontally or vertically, and tidy up (arrange in a grid).
+- [x] Smart guides: while moving or resizing, snap edges and centers to nearby items within 6 screen pixels, draw guide lines, and show equal-spacing hints. Hold Cmd to turn snapping off.
+- [x] Optional dot grid with a snap-to-grid toggle. Keep it off by default.
 
 Coordinate with 1B, since both add controls to `SelectionBar.tsx`.
 

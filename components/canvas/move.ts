@@ -1,5 +1,35 @@
+import { GUIDE_PX, snapDragDelta } from '@/lib/align';
+import { boundsOf, isBox, unionRect } from '@/lib/items';
 import { expandGroups, unlockedIds } from '@/lib/stack';
 import type { Drag, InteractionCtx } from './types';
+
+function snapMove(
+  ctx: InteractionCtx,
+  ids: string[],
+  dx: number,
+  dy: number,
+  e: { metaKey: boolean; ctrlKey: boolean },
+) {
+  const cmd = e.metaKey || e.ctrlKey;
+  const items = ctx.propsRef.current.items;
+  const idSet = new Set(ids);
+  const orig = unionRect(
+    items.filter((i) => idSet.has(i.id) && isBox(i)).map(boundsOf),
+  );
+  if (!orig) return { dx, dy, guides: null };
+  const others = items
+    .filter((i) => !idSet.has(i.id) && isBox(i))
+    .map(boundsOf);
+  return snapDragDelta(
+    orig,
+    others,
+    dx,
+    dy,
+    GUIDE_PX / ctx.viewRef.current.k,
+    ctx.propsRef.current.snapGrid && !cmd,
+    cmd,
+  );
+}
 
 export function startMove(
   ctx: InteractionCtx,
@@ -53,10 +83,12 @@ export function moveMove(
   d: Extract<Drag, { kind: 'move' }>,
   e: PointerEvent,
 ) {
-  const dx = e.clientX - d.sx;
-  const dy = e.clientY - d.sy;
   const k = ctx.viewRef.current.k;
-  ctx.setDragging({ ids: new Set(d.ids), x: dx / k, y: dy / k });
+  const rawX = (e.clientX - d.sx) / k;
+  const rawY = (e.clientY - d.sy) / k;
+  const snapped = snapMove(ctx, d.ids, rawX, rawY, e);
+  ctx.setDragging({ ids: new Set(d.ids), x: snapped.dx, y: snapped.dy });
+  ctx.setGuides(snapped.guides);
 }
 
 export function endMove(
@@ -68,13 +100,19 @@ export function endMove(
   if (d.moved) {
     if (!d.ids.length) {
       ctx.setDragging(null);
+      ctx.setGuides(null);
       return;
     }
     const k = ctx.viewRef.current.k;
-    const dx = (e.clientX - d.sx) / k;
-    const dy = (e.clientY - d.sy) / k;
-    if (d.duplicate) p.onDuplicateMove(d.ids, dx, dy);
-    else p.onMove(d.ids, dx, dy);
+    const snapped = snapMove(
+      ctx,
+      d.ids,
+      (e.clientX - d.sx) / k,
+      (e.clientY - d.sy) / k,
+      e,
+    );
+    if (d.duplicate) p.onDuplicateMove(d.ids, snapped.dx, snapped.dy);
+    else p.onMove(d.ids, snapped.dx, snapped.dy);
   } else if (!d.shift && d.wasSelected && p.selected.size > 1) {
     const it = p.items.find((i) => i.id === d.clickId);
     const groupHits =
@@ -85,4 +123,5 @@ export function endMove(
     if (!groupHits) p.onSelect(new Set([d.clickId]));
   }
   ctx.setDragging(null);
+  ctx.setGuides(null);
 }
