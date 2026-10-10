@@ -139,11 +139,18 @@ export interface Store {
   currentId: string;
 }
 
+export type AskEdge = {
+  from: string | null;
+  to: string | null;
+  label: string;
+};
+
 /** What the client sends to /api/ask. */
 export interface AskRequest {
   question: string;
   boardName: string;
   items: { id: string; text: string; x: number; y: number; by: Author }[];
+  edges: AskEdge[];
   selectedIds: string[];
   history: { q: string; a: string }[];
 }

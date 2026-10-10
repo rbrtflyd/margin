@@ -9,6 +9,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { AskTurn, Item } from '@/lib/types';
+import { boxesForAsk, connectorEdges } from '@/lib/connectors';
 import { nowISO } from '@/lib/store';
 import {
   MessageScroller,
@@ -191,16 +192,19 @@ export default function AskPanel(props: Props) {
         headers: () => ({ 'x-margin-passcode': readPass() }),
         body: () => {
           const b = boardRef.current;
+          const boxes = boxesForAsk(b.items);
+          const boxIds = new Set(boxes.map((i) => i.id));
           return {
             boardName: b.boardName,
-            items: b.items.map((i) => ({
+            items: boxes.map((i) => ({
               id: i.id,
               text: i.text,
               x: i.x,
               y: i.y,
               by: i.by,
             })),
-            selectedIds: b.selectedIds,
+            edges: connectorEdges(b.items),
+            selectedIds: b.selectedIds.filter((id) => boxIds.has(id)),
           };
         },
         fetch: async (input, init) => {
@@ -310,10 +314,14 @@ export default function AskPanel(props: Props) {
   }, []);
 
   const busy = status === 'submitted' || status === 'streaming';
-  const scope = props.selectedIds.length || props.items.length;
-  const scopeLabel = props.selectedIds.length
-    ? `Reading ${props.selectedIds.length} selected box${props.selectedIds.length === 1 ? '' : 'es'}`
-    : `Reading the whole board · ${props.items.length} box${props.items.length === 1 ? '' : 'es'}`;
+  const boxes = boxesForAsk(props.items);
+  const selectedBoxes = props.selectedIds.filter((id) =>
+    boxes.some((i) => i.id === id),
+  );
+  const scope = selectedBoxes.length || boxes.length;
+  const scopeLabel = selectedBoxes.length
+    ? `Reading ${selectedBoxes.length} selected box${selectedBoxes.length === 1 ? '' : 'es'}`
+    : `Reading the whole board · ${boxes.length} box${boxes.length === 1 ? '' : 'es'}`;
 
   async function send(q: string) {
     const question = q.trim();

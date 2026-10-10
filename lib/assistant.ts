@@ -1,5 +1,5 @@
 import { anthropic } from '@ai-sdk/anthropic';
-import type { AskRequest } from './types';
+import type { AskEdge, AskRequest } from './types';
 
 const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const HISTORY_MESSAGES = 13;
@@ -15,7 +15,7 @@ export function languageModel() {
  */
 export const SYSTEM_PROMPT = `You are the assistant inside Margin, a canvas where a product designer thinks in loose text boxes.
 
-Each box is free text. It might be an idea, a question, a note to self, a quote from a call, a task, a link, or a mix. Interpret them yourself; never ask the designer to label or sort anything. Position is a hint: boxes close together are probably related.
+Each box is free text. It might be an idea, a question, a note to self, a quote from a call, a task, a link, or a mix. Interpret them yourself; never ask the designer to label or sort anything. Position is a hint: boxes close together are probably related. Lines between boxes are connections, sometimes with a label; treat them as how boxes relate, not as items of their own. Don't invent connections that aren't listed.
 
 Your role is assistant and rubber duck, not co-designer:
 - Surface what is already on the board that bears on their message. Quote a few words of a box so they can find it.
@@ -50,7 +50,18 @@ export function boardContext(req: AskRequest): string {
   const scope = selected.size
     ? `They selected ${selected.size} box${selected.size === 1 ? '' : 'es'} (marked SELECTED).`
     : 'Nothing is selected, so they mean the whole board.';
-  return `Board: "${req.boardName}"\nToday: ${new Date().toDateString()}\n${scope}\n\nBoxes (id, position, text):\n\n${lines.join('\n\n') || '(the board is empty)'}`;
+  const connections =
+    req.edges.length === 0
+      ? ''
+      : `\n\nConnections:\n${req.edges.map(formatEdge).join('\n')}`;
+  return `Board: "${req.boardName}"\nToday: ${new Date().toDateString()}\n${scope}\n\nBoxes (id, position, text):\n\n${lines.join('\n\n') || '(the board is empty)'}${connections}`;
+}
+
+function formatEdge(e: AskEdge): string {
+  const from = e.from ? `[${e.from}]` : '(free)';
+  const to = e.to ? `[${e.to}]` : '(free)';
+  const label = e.label.trim();
+  return label ? `${from} --${label}--> ${to}` : `${from} --> ${to}`;
 }
 
 function lastUserText(messages: unknown): string {
@@ -106,10 +117,26 @@ export function validateAsk(body: unknown): AskRequest | string {
         .slice(-6)
         .map((h) => ({ q: h.q.slice(0, 4000), a: h.a.slice(0, 8000) }))
     : [];
+  const edges: AskEdge[] = [];
+  if (Array.isArray(b.edges)) {
+    for (const raw of b.edges.slice(0, 2000)) {
+      if (!raw || typeof raw !== 'object') continue;
+      const e = raw as Record<string, unknown>;
+      const from =
+        e.from === null || typeof e.from === 'string' ? e.from : null;
+      const to = e.to === null || typeof e.to === 'string' ? e.to : null;
+      edges.push({
+        from: typeof from === 'string' ? from.slice(0, 40) : null,
+        to: typeof to === 'string' ? to.slice(0, 40) : null,
+        label: typeof e.label === 'string' ? e.label.slice(0, 4000) : '',
+      });
+    }
+  }
   return {
     question,
     boardName: typeof b.boardName === 'string' ? b.boardName.slice(0, 200) : 'Untitled board',
     items: clean,
+    edges,
     selectedIds,
     history,
   };

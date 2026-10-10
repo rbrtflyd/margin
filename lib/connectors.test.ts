@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   SNAP,
   alongPath,
+  boxesForAsk,
+  connectorEdges,
   connectorPoints,
   detachAnchor,
   elbowMid,
@@ -16,6 +18,7 @@ import {
   snapAnchor,
   STUB,
 } from './connectors';
+import type { Item } from './types';
 import type { Rect } from './items';
 
 function rects(r: Rect, id = 'n1') {
@@ -225,5 +228,41 @@ describe('detachAnchor', () => {
   it('leaves an attached end alone when its node remains', () => {
     const a = { itemId: 'n1', side: 'e' as const };
     expect(detachAnchor(a, new Set(['other']), rects(box))).toEqual(a);
+  });
+});
+
+describe('connectorEdges', () => {
+  const sticky = (id: string, text: string): Item => ({
+    id,
+    x: 0,
+    y: 0,
+    text,
+    by: 'me',
+    createdAt: '',
+    editedAt: '',
+    kind: 'sticky',
+  });
+
+  it('omits connectors from boxes and lists them as edges', () => {
+    const items: Item[] = [
+      sticky('a', 'Intake'),
+      sticky('b', 'Review'),
+      {
+        id: 'c1',
+        x: 0,
+        y: 0,
+        text: 'depends',
+        by: 'me',
+        createdAt: '',
+        editedAt: '',
+        kind: 'connector',
+        start: { itemId: 'a', side: 'e' },
+        end: { x: 10, y: 10 },
+      },
+    ];
+    expect(boxesForAsk(items).map((i) => i.id)).toEqual(['a', 'b']);
+    expect(connectorEdges(items)).toEqual([
+      { from: 'a', to: null, label: 'depends' },
+    ]);
   });
 });

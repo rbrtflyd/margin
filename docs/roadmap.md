@@ -23,7 +23,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 3A | Connection dots and quick-create | 0B, 0C | done |
 | 3B | Arrowheads, curves, auto sides, elbow bends | 0D | done |
 | 3C | Connector label editing | 3B | done |
-| 3D | Assistant reads connectors | none | open |
+| 3D | Assistant reads connectors | none | done |
 | 4A | Image storage pipeline | 0A, 0D | open |
 | 4B | Image items on the canvas | 4A | open |
 | 4C | Link cards and `/api/unfurl` | 0D | open |
@@ -210,8 +210,8 @@ The assistant gets connectors today as items with empty text and no endpoints, s
 
 Touches: `components/AskPanel.tsx`, `lib/types.ts` (`AskRequest`), `app/api/ask`, `lib/assistant.ts`.
 
-- [ ] Send items without connectors, plus `edges: { from, to, label }[]`, where `from` and `to` are item ids or `null` for free ends.
-- [ ] Describe the edges to the model in the board context, and mention them in `SYSTEM_PROMPT` without changing the assistant's stance.
+- [x] Send items without connectors, plus `edges: { from, to, label }[]`, where `from` and `to` are item ids or `null` for free ends.
+- [x] Describe the edges to the model in the board context, and mention them in `SYSTEM_PROMPT` without changing the assistant's stance.
 
 ## Phase 4: Images, links, and embeds
 
