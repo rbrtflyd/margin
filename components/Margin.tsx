@@ -19,6 +19,7 @@ import type {
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import { compactItem, itemKind, type Rect } from '@/lib/items';
 import { detachAnchor, isAttach, nodeRects } from '@/lib/connectors';
+import { nextHistory } from '@/lib/history';
 import Canvas from './Canvas';
 import type { CanvasApi, CreateDraft, Pt } from './Canvas';
 import { toast } from '@/components/ui/toast';
@@ -28,7 +29,12 @@ import CanvasToolbar from './CanvasToolbar';
 import SaveStatus, { type SaveStatusKind } from './SaveStatus';
 import UserMenu from './UserMenu';
 
-type History = { past: Item[][]; future: Item[][] };
+type History = {
+  past: Item[][];
+  future: Item[][];
+  coalesceKey?: string;
+  at?: number;
+};
 const MAX_HISTORY = 100;
 
 function isEditable(t: EventTarget | null): boolean {
@@ -264,20 +270,36 @@ export default function Margin({ user }: { user: User | null }) {
     return h;
   };
 
-  const pushHistory = (boardId: string, items: Item[]) => {
+  const pushHistory = (
+    boardId: string,
+    items: Item[],
+    coalesceKey?: string,
+  ) => {
     const h = hist(boardId);
-    h.past.push(items);
+    const snap = nextHistory(
+      { past: h.past, coalesceKey: h.coalesceKey, at: h.at },
+      items,
+      coalesceKey,
+      Date.now(),
+    );
+    h.past = snap.past;
     if (h.past.length > MAX_HISTORY) h.past.shift();
+    h.coalesceKey = snap.coalesceKey;
+    h.at = snap.at;
     h.future = [];
   };
 
   /** Replace the current board's items. record=true makes it undoable. */
-  const commitItems = (producer: (items: Item[]) => Item[], record = true) => {
+  const commitItems = (
+    producer: (items: Item[]) => Item[],
+    record = true,
+    coalesceKey?: string,
+  ) => {
     const b = currentBoard();
     if (!b) return;
     const next = producer(b.items);
     if (next === b.items) return;
-    if (record) pushHistory(b.id, b.items);
+    if (record) pushHistory(b.id, b.items, coalesceKey);
     markDirty(b.id);
     update((s) => ({
       ...s,
@@ -488,6 +510,8 @@ export default function Margin({ user }: { user: User | null }) {
     const prev = h.past.pop();
     if (!prev) return;
     h.future.push(b.items);
+    h.coalesceKey = undefined;
+    h.at = undefined;
     commitItems(() => prev, false);
     setEditingId(null);
     setSelected(
@@ -503,6 +527,8 @@ export default function Margin({ user }: { user: User | null }) {
     const next = h.future.pop();
     if (!next) return;
     h.past.push(b.items);
+    h.coalesceKey = undefined;
+    h.at = undefined;
     commitItems(() => next, false);
     setEditingId(null);
   };

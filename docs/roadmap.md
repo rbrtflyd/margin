@@ -12,7 +12,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 0B | Split `Canvas.tsx` into interaction modules | none | done |
 | 0C | Bounds layer and canvas bug fixes | 0B | done |
 | 0D | Item schema v2 | none | done |
-| 0E | Geometry tests and undo coalescing | 0A | open |
+| 0E | Geometry tests and undo coalescing | 0A | done |
 | 1A | Duplicate, nudge, copy and paste items | 0B | open |
 | 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | open |
 | 1C | Stacking order, lock, group | 0B, 0D | open |
@@ -54,7 +54,7 @@ These come from `CLAUDE.md` and the project brief. A change that breaks one of t
 - **Coordinates are world units.** Anything measured on screen, like snap distances, hit areas, and handle sizes, gets divided by `view.k`.
 - **Schema changes go in four places:** `lib/types.ts`, `itemValidator` in `convex/schemas/boards.ts`, `compactItem` in `lib/items.ts`, and import/export in `lib/store.ts`.
 - **Next.js 16:** read the relevant guide in `node_modules/next/dist/docs/` before writing route or config code.
-- **Verify:** run `npm run typecheck` and `npm run build`, then test the feature in the browser with `npm run dev`. Once 0E lands, also run the tests.
+- **Verify:** run `npm run typecheck`, `npm run build`, and `npm test`, then test the feature in the browser with `npm run dev`.
 
 ### Files many workstreams touch
 
@@ -121,9 +121,9 @@ Done when old boards and old export files load unchanged, and typecheck passes.
 
 Touches: `package.json`, new `*.test.ts` files next to `lib/`, `components/Margin.tsx`.
 
-- [ ] Add Vitest and an `npm test` script.
-- [ ] Test `applyResize`, `snapAnchor`, `elbowPoints`, `connectorPoints`, `detachAnchor`, `boundsOf`, and the v1 to v2 import migration.
-- [ ] Let `commitItems` take a coalesce key, so repeated writes with the same key within about 500ms become one undo step. Nudging and clicking through colors will use this.
+- [x] Add Vitest and an `npm test` script.
+- [x] Test `applyResize`, `snapAnchor`, `elbowPoints`, `connectorPoints`, `detachAnchor`, `boundsOf`, and the v1 to v2 import migration.
+- [x] Let `commitItems` take a coalesce key, so repeated writes with the same key within about 500ms become one undo step. Nudging and clicking through colors will use this.
 
 Done when `npm test` passes, and holding an arrow key creates one undo step instead of dozens.
 
