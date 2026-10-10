@@ -4,6 +4,9 @@ import {
   connectorPoints,
   detachAnchor,
   elbowPoints,
+  oppositeSide,
+  QUICK_GAP,
+  quickCreateOrigin,
   snapAnchor,
   STUB,
 } from './connectors';
@@ -25,6 +28,13 @@ describe('snapAnchor', () => {
 
   it('stays a free point outside SNAP', () => {
     expect(snapAnchor({ x: 200, y: 40 }, rects(box))).toEqual({ x: 200, y: 40 });
+  });
+
+  it('skips an excluded item', () => {
+    expect(snapAnchor({ x: 110, y: 40 }, rects(box), SNAP, 'n1')).toEqual({
+      x: 110,
+      y: 40,
+    });
   });
 
   it('uses SNAP / k so the grab distance stays ~28px on screen', () => {
@@ -77,6 +87,36 @@ describe('connectorPoints', () => {
     expect(connectorPoints(start, end, 'elbow')).toEqual(
       elbowPoints(start.p, start.side, end.p, end.side),
     );
+  });
+});
+
+describe('quickCreateOrigin', () => {
+  it('places a sibling beyond the given side, centered', () => {
+    const from = { x: 0, y: 0, w: 100, h: 80 };
+    const size = { w: 100, h: 80 };
+    expect(quickCreateOrigin(from, 'e', size)).toEqual({
+      x: 100 + QUICK_GAP,
+      y: 0,
+    });
+    expect(quickCreateOrigin(from, 'w', size)).toEqual({
+      x: -QUICK_GAP - 100,
+      y: 0,
+    });
+    expect(quickCreateOrigin(from, 's', size)).toEqual({
+      x: 0,
+      y: 80 + QUICK_GAP,
+    });
+    expect(quickCreateOrigin(from, 'n', size)).toEqual({
+      x: 0,
+      y: -QUICK_GAP - 80,
+    });
+  });
+
+  it('maps each side to its opposite', () => {
+    expect(oppositeSide('e')).toBe('w');
+    expect(oppositeSide('w')).toBe('e');
+    expect(oppositeSide('n')).toBe('s');
+    expect(oppositeSide('s')).toBe('n');
   });
 });
 

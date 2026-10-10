@@ -20,7 +20,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 2A | Shapes rendered as SVG, more shapes | 0D | done |
 | 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | done |
 | 2C | Text formatting and sticky sizing | 0D | done |
-| 3A | Connection dots and quick-create | 0B, 0C | open |
+| 3A | Connection dots and quick-create | 0B, 0C | done |
 | 3B | Arrowheads, curves, auto sides, elbow bends | 0D | open |
 | 3C | Connector label editing | 3B | open |
 | 3D | Assistant reads connectors | none | open |
@@ -187,9 +187,9 @@ Diamonds and triangles are cut out with a CSS `clipPath` today, and a clip path 
 
 ### 3A. Connection dots and quick-create
 
-- [ ] On hover or selection, show a dot on each side of an item. Dragging from a dot starts a connector there.
-- [ ] Quick-create: hovering a shape or sticky shows a `+` on each side. Clicking one creates a matching item at a set distance, already connected, and puts it straight into editing. This is the biggest single speed-up for flowcharts.
-- [ ] Dots and `+` controls also appear on selection, not only on hover, so touch works.
+- [x] On hover or selection, show a dot on each side of an item. Dragging from a dot starts a connector there.
+- [x] Quick-create: hovering a shape or sticky shows a `+` on each side. Clicking one creates a matching item at a set distance, already connected, and puts it straight into editing. This is the biggest single speed-up for flowcharts.
+- [x] Dots and `+` controls also appear on selection, not only on hover, so touch works.
 
 ### 3B. Arrowheads, curves, auto sides, elbow bends
 

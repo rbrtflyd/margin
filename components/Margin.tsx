@@ -10,6 +10,7 @@ import type {
   Board,
   Handle,
   Item,
+  Side,
   Store,
   Tool,
   User,
@@ -22,12 +23,20 @@ import {
   isBox,
   itemKind,
   scaleItem,
+  SHAPE_SIZE,
+  STICKY_SIZE,
   STICKY_WIDE,
+  storedRect,
   styleOf,
   type ItemStyle,
   type Rect,
 } from '@/lib/items';
-import { detachAnchor, nodeRects } from '@/lib/connectors';
+import {
+  detachAnchor,
+  nodeRects,
+  oppositeSide,
+  quickCreateOrigin,
+} from '@/lib/connectors';
 import { nextHistory } from '@/lib/history';
 import {
   cloneItems,
@@ -416,6 +425,60 @@ export default function Margin({ user }: { user: User | null }) {
 
   const createAt = (p: Pt, text = '', by: Author = 'me') =>
     createItem({ kind: 'text', x: p.x, y: p.y, text, by, edit: !text });
+
+  const quickCreate = (sourceId: string, side: Side) => {
+    const b = currentBoard();
+    if (!b) return;
+    const src = b.items.find((i) => i.id === sourceId);
+    if (!src) return;
+    const kind = itemKind(src);
+    if (kind !== 'sticky' && kind !== 'shape') return;
+    const from = storedRect(src);
+    const size =
+      kind === 'sticky'
+        ? { w: src.w ?? STICKY_SIZE, h: src.h ?? STICKY_SIZE }
+        : { w: src.w ?? SHAPE_SIZE, h: src.h ?? SHAPE_SIZE };
+    const origin = quickCreateOrigin(from, side, size);
+    const t = nowISO();
+    const style = styleOf(src);
+    const next = compactItem({
+      id: uid(kind[0] + '_'),
+      x: Math.round(origin.x),
+      y: Math.round(origin.y),
+      w: size.w,
+      h: size.h,
+      text: '',
+      by: 'me',
+      createdAt: t,
+      editedAt: t,
+      kind,
+      shape: src.shape,
+      fill: src.fill ?? style.fill,
+      stroke: style.stroke,
+      strokeWidth: style.strokeWidth,
+      strokeStyle: style.strokeStyle,
+      textColor: style.textColor,
+      fontSize: style.fontSize,
+      align: style.align,
+    });
+    const line = compactItem({
+      id: uid('c_'),
+      x: 0,
+      y: 0,
+      text: '',
+      by: 'me',
+      createdAt: t,
+      editedAt: t,
+      kind: 'connector',
+      start: { itemId: src.id, side },
+      end: { itemId: next.id, side: oppositeSide(side) },
+    });
+    rememberStyle(next);
+    editSnapshot.current = { id: next.id, items: b.items, isNew: true };
+    commitItems((items) => [...items, next, line], false);
+    setSelected(new Set([next.id]));
+    setEditingId(next.id);
+  };
 
   const startEdit = (id: string) => {
     const b = currentBoard();
@@ -1107,6 +1170,7 @@ export default function Margin({ user }: { user: User | null }) {
         onMove={moveItems}
         onDuplicateMove={duplicateItems}
         onCreate={createItem}
+        onQuickCreate={quickCreate}
         onResize={resizeItem}
         onResizeAll={resizeAll}
         onPatch={patchItem}

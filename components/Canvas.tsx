@@ -10,6 +10,7 @@ import type {
   Anchor,
   Handle,
   Item,
+  Side,
   Tool,
   View,
 } from '@/lib/types';
@@ -30,8 +31,12 @@ import {
   arrowHead,
   connectorPoints,
   isAttach,
+  outPoint,
   pathD,
+  PLUS_OUT,
   resolveAnchor,
+  SIDES,
+  sidePoint,
   type Pt,
 } from '@/lib/connectors';
 import BoardItem, { BOX_HANDLES, Editor, HANDLE_POS } from './BoardItem';
@@ -51,7 +56,7 @@ import { startMove } from './canvas/move';
 import { startMarquee } from './canvas/marquee';
 import { startResize } from './canvas/resize';
 import { placeShape, placeSticky, startPlace } from './canvas/place';
-import { startConnect } from './canvas/connect';
+import { startConnect, startConnectFrom } from './canvas/connect';
 import { startEndpoint } from './canvas/endpoint';
 import { endDrag, moveDrag } from './canvas/index';
 
@@ -82,6 +87,7 @@ interface Props {
   onMove(ids: string[], dx: number, dy: number): void;
   onDuplicateMove(ids: string[], dx: number, dy: number): void;
   onCreate(draft: CreateDraft): void;
+  onQuickCreate(sourceId: string, side: Side): void;
   onResize(id: string, box: Rect, handle: Handle): void;
   onResizeAll(ids: string[], from: Rect, to: Rect): void;
   onPatch(id: string, patch: Partial<Item>): void;
@@ -470,6 +476,13 @@ export default function Canvas(props: Props) {
           setHoverId(null);
           return;
         }
+        const portEl = (e.target as HTMLElement | null)?.closest?.(
+          '[data-dot],[data-plus]',
+        );
+        if (portEl instanceof HTMLElement && portEl.dataset.item) {
+          setHoverId(portEl.dataset.item);
+          return;
+        }
         const w = ctx.toWorld(e.clientX, e.clientY);
         const items = ctx.propsRef.current.items;
         const selected = ctx.propsRef.current.selected;
@@ -478,11 +491,12 @@ export default function Canvas(props: Props) {
           const it = items[i];
           if (!isBox(it)) continue;
           const b = boundsOf(it);
+          const pad = PLUS_OUT + 12;
           if (
-            w.x >= b.x &&
-            w.x <= b.x + b.w &&
-            w.y >= b.y &&
-            w.y <= b.y + b.h
+            w.x >= b.x - pad &&
+            w.x <= b.x + b.w + pad &&
+            w.y >= b.y - pad &&
+            w.y <= b.y + b.h + pad
           ) {
             hit = selected.has(it.id) ? null : it.id;
             break;
@@ -607,6 +621,22 @@ export default function Canvas(props: Props) {
       return;
     }
 
+    const plusEl = target.closest<HTMLElement>('[data-plus]');
+    if (plusEl && itemId) {
+      const side = plusEl.dataset.plus as Side | undefined;
+      if (side) props.onQuickCreate(itemId, side);
+      return;
+    }
+
+    const dotEl = target.closest<HTMLElement>('[data-dot]');
+    if (dotEl && itemId) {
+      const side = dotEl.dataset.dot as Side | undefined;
+      if (side) {
+        dragRef.current = startConnectFrom({ itemId, side });
+      }
+      return;
+    }
+
     if (p.tool.type === 'connector') {
       dragRef.current = startConnect(ctx, world);
       return;
@@ -641,6 +671,7 @@ export default function Canvas(props: Props) {
     if (isEditable(e.target)) return;
     const p = propsRef.current;
     const target = e.target as HTMLElement;
+    if (target.closest('[data-plus],[data-dot]')) return;
     const itemEl = target.closest<HTMLElement>('[data-item]');
     const id = itemEl ? itemEl.dataset.item : undefined;
     if (id) {
@@ -924,6 +955,62 @@ export default function Canvas(props: Props) {
             />
           );
         })}
+        {!dragging &&
+          !resize &&
+          !draftLine &&
+          (props.tool.type === 'select' || props.tool.type === 'connector') &&
+          nodes.map((it) => {
+            if (props.editingId === it.id) return null;
+            const show =
+              shown.has(it.id) || hoverId === it.id;
+            if (!show) return null;
+            const box = rects.get(it.id) ?? storedRect(it);
+            const kind = itemKind(it);
+            const plus = kind === 'sticky' || kind === 'shape';
+            const r = 5 / view.k;
+            return SIDES.map((side) => {
+              const p = sidePoint(box, side);
+              const q = outPoint(p, side, PLUS_OUT);
+              return (
+                <div key={it.id + side}>
+                  <div
+                    data-item={it.id}
+                    data-dot={side}
+                    aria-label={'Connect ' + side}
+                    className="absolute z-20 rounded-full bg-white ring-1 ring-zinc-400 hover:ring-sky-700"
+                    style={{
+                      left: p.x,
+                      top: p.y,
+                      width: r * 2,
+                      height: r * 2,
+                      transform: 'translate(-50%, -50%)',
+                      cursor: 'crosshair',
+                    }}
+                  />
+                  {plus && (
+                    <button
+                      type="button"
+                      data-item={it.id}
+                      data-plus={side}
+                      aria-label={'Add ' + side}
+                      className="absolute z-20 flex items-center justify-center rounded-full border-0 bg-white text-zinc-600 ring-1 ring-zinc-300 hover:bg-sky-50 hover:text-sky-800 hover:ring-sky-700"
+                      style={{
+                        left: q.x,
+                        top: q.y,
+                        width: 18 / view.k,
+                        height: 18 / view.k,
+                        fontSize: 14 / view.k,
+                        lineHeight: 1,
+                        transform: 'translate(-50%, -50%)',
+                        cursor: 'pointer',
+                      }}>
+                      +
+                    </button>
+                  )}
+                </div>
+              );
+            });
+          })}
         {shown.size > 1 && union && !props.editingId && (
           <div
             className="pointer-events-none absolute"

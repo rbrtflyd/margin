@@ -10,6 +10,7 @@ import type {
   ItemKind,
   Route,
   ShapeKind,
+  Side,
   Stroke,
   StrokeStyle,
   StrokeWidth,
@@ -120,6 +121,7 @@ export type CanvasProps = {
   onMove(ids: string[], dx: number, dy: number): void;
   onDuplicateMove(ids: string[], dx: number, dy: number): void;
   onCreate(draft: CreateDraft): void;
+  onQuickCreate(sourceId: string, side: Side): void;
   onResize(id: string, box: Rect, handle: Handle): void;
   onResizeAll(ids: string[], from: Rect, to: Rect): void;
   onPatch(id: string, patch: Partial<Item>): void;

@@ -5,6 +5,47 @@ export type Pt = { x: number; y: number };
 
 export const SNAP = 28;
 export const STUB = 16;
+export const QUICK_GAP = 80;
+export const PLUS_OUT = 22;
+export const SIDES: Side[] = ['n', 'e', 's', 'w'];
+
+export function oppositeSide(side: Side): Side {
+  if (side === 'n') return 's';
+  if (side === 's') return 'n';
+  if (side === 'e') return 'w';
+  return 'e';
+}
+
+/** Top-left of a same-size sibling placed `gap` beyond `side`. */
+export function quickCreateOrigin(
+  from: Rect,
+  side: Side,
+  size: { w: number; h: number },
+  gap = QUICK_GAP,
+): Pt {
+  switch (side) {
+    case 'e':
+      return {
+        x: from.x + from.w + gap,
+        y: from.y + from.h / 2 - size.h / 2,
+      };
+    case 'w':
+      return {
+        x: from.x - gap - size.w,
+        y: from.y + from.h / 2 - size.h / 2,
+      };
+    case 's':
+      return {
+        x: from.x + from.w / 2 - size.w / 2,
+        y: from.y + from.h + gap,
+      };
+    case 'n':
+      return {
+        x: from.x + from.w / 2 - size.w / 2,
+        y: from.y - gap - size.h,
+      };
+  }
+}
 
 export function isAttach(
   a: Anchor,
@@ -69,9 +110,11 @@ export function snapAnchor(
   p: Pt,
   rects: Map<string, Rect>,
   snap = SNAP,
+  excludeId?: string,
 ): Anchor {
   let best: { score: number; itemId: string; side: Side } | null = null;
   for (const [id, r] of rects) {
+    if (id === excludeId) continue;
     const inside =
       p.x >= r.x - snap &&
       p.x <= r.x + r.w + snap &&
