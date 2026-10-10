@@ -69,6 +69,7 @@ interface Props {
   apiRef: RefObject<CanvasApi | null>;
   onSelect(ids: Set<string>): void;
   onMove(ids: string[], dx: number, dy: number): void;
+  onDuplicateMove(ids: string[], dx: number, dy: number): void;
   onCreate(draft: CreateDraft): void;
   onResize(id: string, box: Rect, handle: Handle): void;
   onPatch(id: string, patch: Partial<Item>): void;

@@ -2,7 +2,7 @@ import type { Drag, InteractionCtx } from './types';
 
 export function startMove(
   ctx: InteractionCtx,
-  e: { clientX: number; clientY: number; shiftKey: boolean },
+  e: { clientX: number; clientY: number; shiftKey: boolean; altKey: boolean },
   itemId: string,
 ): Drag | null {
   const p = ctx.propsRef.current;
@@ -21,6 +21,7 @@ export function startMove(
       clickId: itemId,
       wasSelected,
       shift: true,
+      duplicate: e.altKey,
       moved: false,
     };
   }
@@ -34,6 +35,7 @@ export function startMove(
     clickId: itemId,
     wasSelected,
     shift: false,
+    duplicate: e.altKey,
     moved: false,
   };
 }
@@ -57,7 +59,10 @@ export function endMove(
   const p = ctx.propsRef.current;
   if (d.moved) {
     const k = ctx.viewRef.current.k;
-    p.onMove(d.ids, (e.clientX - d.sx) / k, (e.clientY - d.sy) / k);
+    const dx = (e.clientX - d.sx) / k;
+    const dy = (e.clientY - d.sy) / k;
+    if (d.duplicate) p.onDuplicateMove(d.ids, dx, dy);
+    else p.onMove(d.ids, dx, dy);
   } else if (!d.shift && d.wasSelected && p.selected.size > 1) {
     p.onSelect(new Set([d.clickId]));
   }

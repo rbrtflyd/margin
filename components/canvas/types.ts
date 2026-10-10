@@ -49,6 +49,7 @@ export type Drag =
       clickId: string;
       wasSelected: boolean;
       shift: boolean;
+      duplicate: boolean;
       moved: boolean;
     }
   | {
@@ -98,6 +99,7 @@ export type CanvasProps = {
   stickyFill: Fill;
   onSelect(ids: Set<string>): void;
   onMove(ids: string[], dx: number, dy: number): void;
+  onDuplicateMove(ids: string[], dx: number, dy: number): void;
   onCreate(draft: CreateDraft): void;
   onResize(id: string, box: Rect, handle: Handle): void;
   onPatch(id: string, patch: Partial<Item>): void;

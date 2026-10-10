@@ -13,7 +13,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 0C | Bounds layer and canvas bug fixes | 0B | done |
 | 0D | Item schema v2 | none | done |
 | 0E | Geometry tests and undo coalescing | 0A | done |
-| 1A | Duplicate, nudge, copy and paste items | 0B | open |
+| 1A | Duplicate, nudge, copy and paste items | 0B | done |
 | 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | open |
 | 1C | Stacking order, lock, group | 0B, 0D | open |
 | 1D | Align, distribute, smart guides, grid | 0C | open |
@@ -131,11 +131,11 @@ Done when `npm test` passes, and holding an arrow key creates one undo step inst
 
 ### 1A. Duplicate, nudge, copy and paste items
 
-- [ ] Cmd+D duplicates the selection, offset slightly. Alt-drag duplicates and leaves the originals in place.
-- [ ] Arrow keys nudge by 1, or 10 with Shift, in screen pixels and coalesced in undo.
-- [ ] Cmd+C writes the items as a JSON payload in a custom MIME type, with the current plain-text output as a fallback.
-- [ ] Cmd+V of that payload pastes items at the cursor with new ids. Connectors between pasted items reattach to the copies, and connectors to items that weren't copied become free ends.
-- [ ] Cut (Cmd+X).
+- [x] Cmd+D duplicates the selection, offset slightly. Alt-drag duplicates and leaves the originals in place.
+- [x] Arrow keys nudge by 1, or 10 with Shift, in screen pixels and coalesced in undo.
+- [x] Cmd+C writes the items as a JSON payload in a custom MIME type, with the current plain-text output as a fallback.
+- [x] Cmd+V of that payload pastes items at the cursor with new ids. Connectors between pasted items reattach to the copies, and connectors to items that weren't copied become free ends.
+- [x] Cut (Cmd+X).
 
 ### 1B. Multi-selection: bar, resize, modifiers, hover
 

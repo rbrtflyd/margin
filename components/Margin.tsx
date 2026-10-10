@@ -18,8 +18,16 @@ import type {
 } from '@/lib/types';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import { compactItem, itemKind, type Rect } from '@/lib/items';
-import { detachAnchor, isAttach, nodeRects } from '@/lib/connectors';
+import { detachAnchor, nodeRects } from '@/lib/connectors';
 import { nextHistory } from '@/lib/history';
+import {
+  cloneItems,
+  decodeItems,
+  encodeItems,
+  MARGIN_ITEMS_MIME,
+  shiftItem,
+  unionBounds,
+} from '@/lib/clipboard';
 import Canvas from './Canvas';
 import type { CanvasApi, CreateDraft, Pt } from './Canvas';
 import { toast } from '@/components/ui/toast';
@@ -431,27 +439,63 @@ export default function Margin({ user }: { user: User | null }) {
     }
   };
 
-  const moveItems = (ids: string[], dx: number, dy: number) => {
+  const moveItems = (ids: string[], dx: number, dy: number, coalesceKey?: string) => {
     const set = new Set(ids);
-    commitItems((items) =>
-      items.map((i) => {
-        if (!set.has(i.id)) return i;
-        if (itemKind(i) === 'connector') {
-          return {
-            ...i,
-            start:
-              i.start && !isAttach(i.start)
-                ? { x: Math.round(i.start.x + dx), y: Math.round(i.start.y + dy) }
-                : i.start,
-            end:
-              i.end && !isAttach(i.end)
-                ? { x: Math.round(i.end.x + dx), y: Math.round(i.end.y + dy) }
-                : i.end,
-          };
-        }
-        return { ...i, x: Math.round(i.x + dx), y: Math.round(i.y + dy) };
-      }),
+    commitItems(
+      (items) => items.map((i) => (set.has(i.id) ? shiftItem(i, dx, dy) : i)),
+      true,
+      coalesceKey,
     );
+  };
+
+  const duplicateItems = (ids: string[], dx: number, dy: number) => {
+    const b = currentBoard();
+    if (!b || !ids.length) return;
+    const set = new Set(ids);
+    const source = b.items.filter((i) => set.has(i.id));
+    const copies = cloneItems(source, b.items).map((i) => shiftItem(i, dx, dy));
+    commitItems((items) => [...items, ...copies]);
+    setSelected(new Set(copies.map((i) => i.id)));
+  };
+
+  const duplicateSelected = () => {
+    const k = zoomRef.current || 1;
+    const offset = 16 / k;
+    duplicateItems(Array.from(selectedRef.current), offset, offset);
+  };
+
+  const nudgeSelected = (dx: number, dy: number) => {
+    const ids = Array.from(selectedRef.current);
+    if (!ids.length) return;
+    moveItems(ids, dx, dy, 'nudge');
+  };
+
+  const pasteItems = (source: Item[]) => {
+    const b = currentBoard();
+    if (!b || !source.length) return;
+    const copies = cloneItems(source, source);
+    const box = unionBounds(copies);
+    const api = canvasApi.current;
+    const p = api?.pointer() ?? api?.center() ?? { x: 0, y: 0 };
+    const dx = box ? p.x - (box.x + box.w / 2) : p.x;
+    const dy = box ? p.y - (box.y + box.h / 2) : p.y;
+    const placed = copies.map((i) => shiftItem(i, dx, dy));
+    commitItems((items) => [...items, ...placed]);
+    setSelected(new Set(placed.map((i) => i.id)));
+  };
+
+  const writeSelection = (data: DataTransfer): boolean => {
+    const b = currentBoard();
+    const sel = selectedRef.current;
+    if (!b || !sel.size) return false;
+    const picked = b.items.filter((i) => sel.has(i.id));
+    const text = [...picked]
+      .sort((x, y) => x.y - y.y || x.x - y.x)
+      .map((i) => i.text)
+      .join('\n\n');
+    data.setData('text/plain', text);
+    data.setData(MARGIN_ITEMS_MIME, encodeItems(cloneItems(picked, b.items)));
+    return true;
   };
 
   const resizeItem = (id: string, box: Rect, handle: Handle) => {
@@ -641,6 +685,8 @@ export default function Margin({ user }: { user: User | null }) {
 
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   const actions = useRef({
     deleteSelected,
     undo,
@@ -648,6 +694,10 @@ export default function Margin({ user }: { user: User | null }) {
     createAt,
     dropPoint,
     startEdit,
+    duplicateSelected,
+    nudgeSelected,
+    pasteItems,
+    writeSelection,
   });
   actions.current = {
     deleteSelected,
@@ -656,6 +706,10 @@ export default function Margin({ user }: { user: User | null }) {
     createAt,
     dropPoint,
     startEdit,
+    duplicateSelected,
+    nudgeSelected,
+    pasteItems,
+    writeSelection,
   };
   const askOpenRef = useRef(askOpen);
   askOpenRef.current = askOpen;
@@ -697,7 +751,28 @@ export default function Margin({ user }: { user: User | null }) {
         if (b) setSelected(new Set(b.items.map((i) => i.id)));
         return;
       }
+      if (mod && key === 'd') {
+        e.preventDefault();
+        a.duplicateSelected();
+        return;
+      }
       if (mod || e.altKey) return;
+      if (
+        e.key === 'ArrowLeft' ||
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowUp' ||
+        e.key === 'ArrowDown'
+      ) {
+        if (!selectedRef.current.size) return;
+        e.preventDefault();
+        const step = (e.shiftKey ? 10 : 1) / (zoomRef.current || 1);
+        const dx =
+          e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy =
+          e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        a.nudgeSelected(dx, dy);
+        return;
+      }
       if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
         a.deleteSelected();
@@ -735,13 +810,24 @@ export default function Margin({ user }: { user: User | null }) {
       }
     };
 
-    // Paste text anywhere on the canvas to drop it in as a box.
+    // Paste items (custom MIME) or plain text as a box.
     const onPaste = (e: ClipboardEvent) => {
       if (isEditable(e.target)) return;
-      const text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+      const data = e.clipboardData;
+      if (!data) return;
+      const a = actions.current;
+      const raw = data.getData(MARGIN_ITEMS_MIME);
+      if (raw) {
+        const source = decodeItems(raw);
+        if (source?.length) {
+          e.preventDefault();
+          a.pasteItems(source);
+          return;
+        }
+      }
+      const text = data.getData('text/plain');
       if (!text.trim()) return;
       e.preventDefault();
-      const a = actions.current;
       const p = a.dropPoint();
       a.createAt(
         { x: p.x - 8, y: p.y - 14 },
@@ -749,28 +835,29 @@ export default function Margin({ user }: { user: User | null }) {
       );
     };
 
-    // Copy selected boxes as plain text, for pasting into other tools.
+    // Copy selected boxes as Margin JSON plus plain text.
     const onCopy = (e: ClipboardEvent) => {
-      if (isEditable(e.target)) return;
-      const b = currentBoard();
-      const sel = selectedRef.current;
-      if (!b || !sel.size || !e.clipboardData) return;
-      const text = b.items
-        .filter((i) => sel.has(i.id))
-        .sort((x, y) => x.y - y.y || x.x - y.x)
-        .map((i) => i.text)
-        .join('\n\n');
-      e.clipboardData.setData('text/plain', text);
+      if (isEditable(e.target) || !e.clipboardData) return;
+      if (!actions.current.writeSelection(e.clipboardData)) return;
       e.preventDefault();
+    };
+
+    const onCut = (e: ClipboardEvent) => {
+      if (isEditable(e.target) || !e.clipboardData) return;
+      if (!actions.current.writeSelection(e.clipboardData)) return;
+      e.preventDefault();
+      actions.current.deleteSelected();
     };
 
     window.addEventListener('keydown', onKey);
     document.addEventListener('paste', onPaste);
     document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCut);
     return () => {
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('paste', onPaste);
       document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCut);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -793,6 +880,7 @@ export default function Margin({ user }: { user: User | null }) {
         stickyFill={stickyFill}
         onSelect={setSelected}
         onMove={moveItems}
+        onDuplicateMove={duplicateItems}
         onCreate={createItem}
         onResize={resizeItem}
         onPatch={patchItem}
