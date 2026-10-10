@@ -46,6 +46,53 @@ export const BOX_HANDLES: Handle[] = [
   'sw',
 ];
 
+function hostOf(url?: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+function LinkCard({ item, claude }: { item: Item; claude: boolean }) {
+  const title = item.meta?.title || hostOf(item.url) || item.url || 'Link';
+  const desc = item.meta?.description;
+  const site = item.meta?.siteName || hostOf(item.url);
+  return (
+    <div
+      className={
+        'flex h-full flex-col overflow-hidden ' +
+        (claude ? 'bg-sky-50 text-sky-900' : 'bg-white text-zinc-900')
+      }>
+      {item.meta?.thumb ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.meta.thumb}
+          alt=""
+          draggable={false}
+          className="pointer-events-none h-16 w-full shrink-0 object-cover"
+        />
+      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2.5 py-2">
+        <div className="truncate text-[13px] font-medium">{title}</div>
+        {desc ? (
+          <div className="line-clamp-2 text-[11px] leading-snug text-zinc-500">
+            {desc}
+          </div>
+        ) : null}
+        <div
+          className={
+            'mt-auto truncate text-[10px] ' +
+            (claude ? 'text-sky-700' : 'text-zinc-400')
+          }>
+          {site}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function handlesFor(it: Item): Handle[] {
   const kind = itemKind(it);
   if (kind === 'shape' || kind === 'image' || kind === 'link' || kind === 'embed') {
@@ -449,6 +496,9 @@ export default function BoardItem(props: Props) {
           ? ' px-3 py-2.5 shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
           : '') +
         (kind === 'image' ? ' overflow-hidden bg-stone-200' : '') +
+        (kind === 'link'
+          ? ' cursor-pointer overflow-hidden bg-white shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
+          : '') +
         (kind === 'shape'
           ? ' flex items-center ' +
             (align === 'center'
@@ -534,7 +584,13 @@ export default function BoardItem(props: Props) {
           )}
         </>
       )}
-      {kind !== 'image' && (
+      {kind === 'link' && (
+        <LinkCard
+          item={it}
+          claude={fill.claude}
+        />
+      )}
+      {kind !== 'image' && kind !== 'link' && (
       <div className={'relative z-[1] min-w-0 ' + (kind === 'shape' ? 'w-full' : '')}>
         {kind === 'text' && it.by === 'claude' && (
           <div className="mb-1 font-mono text-[9.5px] font-medium tracking-widest text-sky-700 uppercase">

@@ -10,6 +10,7 @@ import type {
   Board,
   Handle,
   Item,
+  LinkMeta,
   Side,
   Store,
   Tool,
@@ -18,12 +19,15 @@ import type {
 } from '@/lib/types';
 import { FORMAT_EVENT, wrapSelection, type FormatKind } from '@/lib/format';
 import { boardSize, encodeWebp, uploadAsset } from '@/lib/images';
+import { isLoneUrl } from '@/lib/links';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import {
   compactItem,
   isBox,
   itemKind,
   scaleItem,
+  LINK_H,
+  LINK_W,
   SHAPE_SIZE,
   STICKY_SIZE,
   STICKY_WIDE,
@@ -450,6 +454,7 @@ export default function Margin({ user }: { user: User | null }) {
       end: draft.end,
       assetId: draft.assetId,
       caption: draft.caption,
+      url: draft.url,
     });
     rememberStyle(item);
     const startEdit =
@@ -549,6 +554,40 @@ export default function Margin({ user }: { user: User | null }) {
         await addImageAt(files[i], { x: at.x + i * 24, y: at.y + i * 24 });
       }
     })();
+  };
+
+  const createLink = (url: string, at: Pt) => {
+    const id = createItem({
+      kind: 'link',
+      x: at.x,
+      y: at.y,
+      w: LINK_W,
+      h: LINK_H,
+      url,
+      edit: false,
+    });
+    if (!id) return;
+    void fetch('/api/unfurl', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<LinkMeta>) : null))
+      .then((meta) => {
+        if (!meta) return;
+        const cur = currentBoard()?.items.find((i) => i.id === id);
+        if (!cur || cur.meta) return;
+        commitItems(
+          (items) =>
+            items.map((i) =>
+              i.id === id
+                ? compactItem({ ...i, meta, editedAt: nowISO() })
+                : i,
+            ),
+          false,
+        );
+      })
+      .catch(() => {});
   };
 
   const quickCreate = (sourceId: string, side: Side) => {
@@ -1104,6 +1143,7 @@ export default function Margin({ user }: { user: User | null }) {
     pasteItems,
     writeSelection,
     addImages,
+    createLink,
     restackSelected,
     toggleLockSelected,
     groupSelected,
@@ -1123,6 +1163,7 @@ export default function Margin({ user }: { user: User | null }) {
     pasteItems,
     writeSelection,
     addImages,
+    createLink,
     restackSelected,
     toggleLockSelected,
     groupSelected,
@@ -1294,6 +1335,11 @@ export default function Margin({ user }: { user: User | null }) {
       if (!text.trim()) return;
       e.preventDefault();
       const p = a.dropPoint();
+      const lone = isLoneUrl(text.replace(/\r\n/g, '\n'));
+      if (lone) {
+        a.createLink(lone, { x: p.x - 40, y: p.y - 20 });
+        return;
+      }
       a.createAt(
         { x: p.x - 8, y: p.y - 14 },
         text.replace(/\r\n/g, '\n').trim(),

@@ -773,6 +773,8 @@ export default function Canvas(props: Props) {
         p.onSelect(new Set([id]));
         return;
       }
+      const kind = it ? itemKind(it) : 'text';
+      if (kind === 'link' || kind === 'embed') return;
       p.onEditStart(id);
       return;
     }

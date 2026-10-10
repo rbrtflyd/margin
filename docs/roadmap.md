@@ -26,7 +26,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 3D | Assistant reads connectors | none | done |
 | 4A | Image storage pipeline | 0A, 0D | done |
 | 4B | Image items on the canvas | 4A | done |
-| 4C | Link cards and `/api/unfurl` | 0D | open |
+| 4C | Link cards and `/api/unfurl` | 0D | done |
 | 4D | Embeds | 4C | open |
 | 4E | Assistant reads images and links | 4B, 4C | open |
 | 5A | Sections | 0C, 0D | open |
@@ -235,9 +235,9 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 
 ### 4C. Link cards and `/api/unfurl`
 
-- [ ] A `POST /api/unfurl` route that fetches a URL and returns OpenGraph and Twitter card metadata. It needs the same session check as `/api/ask`. It must block private and loopback IPs (checked after DNS resolves and on every redirect), time out after 5 seconds, and stop reading after about 1 MB.
-- [ ] Pasting a lone URL creates a link card with title, description, site name, favicon, and preview image. Store the metadata on the item and never fetch it again.
-- [ ] Clicking a card opens the link in a new tab, unless you're dragging it.
+- [x] A `POST /api/unfurl` route that fetches a URL and returns OpenGraph and Twitter card metadata. It needs the same session check as `/api/ask`. It must block private and loopback IPs (checked after DNS resolves and on every redirect), time out after 5 seconds, and stop reading after about 1 MB.
+- [x] Pasting a lone URL creates a link card with title, description, site name, favicon, and preview image. Store the metadata on the item and never fetch it again.
+- [x] Clicking a card opens the link in a new tab, unless you're dragging it.
 
 ### 4D. Embeds
 

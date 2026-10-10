@@ -31,6 +31,7 @@ export type CreateDraft = {
   by?: Author;
   assetId?: string;
   caption?: string;
+  url?: string;
   shape?: ShapeKind;
   fill?: Fill | 'none';
   stroke?: Stroke;

@@ -1,5 +1,5 @@
 import { GUIDE_PX, snapDragDelta } from '@/lib/align';
-import { boundsOf, isBox, unionRect } from '@/lib/items';
+import { boundsOf, isBox, itemKind, unionRect } from '@/lib/items';
 import { expandGroups, unlockedIds } from '@/lib/stack';
 import type { Drag, InteractionCtx } from './types';
 
@@ -113,14 +113,18 @@ export function endMove(
     );
     if (d.duplicate) p.onDuplicateMove(d.ids, snapped.dx, snapped.dy);
     else p.onMove(d.ids, snapped.dx, snapped.dy);
-  } else if (!d.shift && d.wasSelected && p.selected.size > 1) {
+  } else if (!d.moved) {
     const it = p.items.find((i) => i.id === d.clickId);
-    const groupHits =
-      it?.groupId &&
-      p.items.some(
-        (i) => i.groupId === it.groupId && i.id !== it.id && p.selected.has(i.id),
-      );
-    if (!groupHits) p.onSelect(new Set([d.clickId]));
+    if (it && itemKind(it) === 'link' && it.url && !d.shift) {
+      window.open(it.url, '_blank', 'noopener,noreferrer');
+    } else if (!d.shift && d.wasSelected && p.selected.size > 1) {
+      const groupHits =
+        it?.groupId &&
+        p.items.some(
+          (i) => i.groupId === it.groupId && i.id !== it.id && p.selected.has(i.id),
+        );
+      if (!groupHits) p.onSelect(new Set([d.clickId]));
+    }
   }
   ctx.setDragging(null);
   ctx.setGuides(null);
