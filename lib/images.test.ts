@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ASSET_TTL_MS,
+  boardSize,
   fitWithin,
   isGcCandidate,
   referencedAssetIds,
@@ -18,6 +19,13 @@ describe('fitWithin', () => {
 
   it('rejects non-positive sizes', () => {
     expect(fitWithin(0, 10)).toEqual({ w: 1, h: 1 });
+  });
+});
+
+describe('boardSize', () => {
+  it('scales the long side to 320', () => {
+    expect(boardSize(800, 600)).toEqual({ w: 320, h: 240 });
+    expect(boardSize(100, 400)).toEqual({ w: 80, h: 320 });
   });
 });
 

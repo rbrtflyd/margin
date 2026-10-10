@@ -25,7 +25,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 3C | Connector label editing | 3B | done |
 | 3D | Assistant reads connectors | none | done |
 | 4A | Image storage pipeline | 0A, 0D | done |
-| 4B | Image items on the canvas | 4A | open |
+| 4B | Image items on the canvas | 4A | done |
 | 4C | Link cards and `/api/unfurl` | 0D | open |
 | 4D | Embeds | 4C | open |
 | 4E | Assistant reads images and links | 4B, 4C | open |
@@ -228,10 +228,10 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 
 ### 4B. Image items on the canvas
 
-- [ ] Paste an image, drag and drop image files, or upload from the toolbar.
-- [ ] Show a local preview right away (`URL.createObjectURL`), then swap in the stored URL.
-- [ ] Resizing keeps proportions by default. Duplicates share the same `assetId`.
-- [ ] An optional caption that the assistant reads.
+- [x] Paste an image, drag and drop image files, or upload from the toolbar.
+- [x] Show a local preview right away (`URL.createObjectURL`), then swap in the stored URL.
+- [x] Resizing keeps proportions by default. Duplicates share the same `assetId`.
+- [x] An optional caption that the assistant reads.
 
 ### 4C. Link cards and `/api/unfurl`
 

@@ -12,6 +12,7 @@ import {
   paintOf,
   SHAPE_SIZE,
   STICKY_SIZE,
+  storedRect,
   strokeOf,
   textAlign,
   textInk,
@@ -47,7 +48,7 @@ export const BOX_HANDLES: Handle[] = [
 
 function handlesFor(it: Item): Handle[] {
   const kind = itemKind(it);
-  if (kind === 'shape') {
+  if (kind === 'shape' || kind === 'image' || kind === 'link' || kind === 'embed') {
     return ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
   }
   if (kind === 'sticky') return ['e', 'w', 'ne', 'nw', 'se', 'sw'];
@@ -367,6 +368,7 @@ interface Props {
   flashing: boolean;
   offset: { x: number; y: number } | null;
   zoom: number;
+  src?: string;
   onEditCommit: (id: string, text: string) => void;
   onResizeDown: (id: string, handle: Handle, e: ReactPointerEvent) => void;
   register: (id: string, el: HTMLDivElement | null) => void;
@@ -385,15 +387,23 @@ export default function BoardItem(props: Props) {
     props.showHandles !== false
       ? handlesFor(it)
       : [];
+  const framed = kind === 'image' || kind === 'link' || kind === 'embed';
+  const frame = framed ? storedRect(it) : null;
   const w =
     it.w ??
-    (kind === 'sticky' ? STICKY_SIZE : kind === 'shape' ? SHAPE_SIZE : undefined);
+    (kind === 'sticky'
+      ? STICKY_SIZE
+      : kind === 'shape'
+        ? SHAPE_SIZE
+        : frame?.w);
   const h =
     kind === 'shape'
       ? (it.h ?? SHAPE_SIZE)
       : kind === 'sticky'
         ? (it.h ?? STICKY_SIZE)
-        : undefined;
+        : frame
+          ? frame.h
+          : undefined;
   const round = kind === 'sticky' ? 'rounded-sm' : 'rounded-md';
   const shapeW = kind === 'shape' ? (w ?? SHAPE_SIZE) : 0;
   const shapeH = kind === 'shape' ? (h ?? SHAPE_SIZE) : 0;
@@ -403,7 +413,7 @@ export default function BoardItem(props: Props) {
     align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left';
 
   const rawBody =
-    props.editing ? (
+    kind === 'image' ? null : props.editing ? (
       <Editor
         initial={it.text}
         onDone={(text) => props.onEditCommit(it.id, text)}
@@ -438,6 +448,7 @@ export default function BoardItem(props: Props) {
         (kind === 'sticky'
           ? ' px-3 py-2.5 shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
           : '') +
+        (kind === 'image' ? ' overflow-hidden bg-stone-200' : '') +
         (kind === 'shape'
           ? ' flex items-center ' +
             (align === 'center'
@@ -447,7 +458,9 @@ export default function BoardItem(props: Props) {
                 : 'justify-start') +
             ' ' +
             alignClass
-          : ' ' + alignClass) +
+          : framed
+            ? ''
+            : ' ' + alignClass) +
         (fill.claude && kind === 'text' ? ' text-base text-sky-800' : '') +
         (props.selected ? ' z-1' : '') +
         (off ? ' opacity-85' : '') +
@@ -465,7 +478,9 @@ export default function BoardItem(props: Props) {
         color:
           kind === 'sticky' || kind === 'shape' || kind === 'text'
             ? ink
-            : undefined,
+            : kind === 'image'
+              ? ink
+              : undefined,
         background:
           kind === 'sticky' || (kind === 'text' && props.editing)
             ? kind === 'sticky'
@@ -486,6 +501,40 @@ export default function BoardItem(props: Props) {
           className="pointer-events-none absolute inset-0"
         />
       )}
+      {kind === 'image' && (
+        <>
+          {props.src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={props.src}
+              alt={it.caption ?? ''}
+              draggable={false}
+              className="pointer-events-none block size-full"
+            />
+          ) : (
+            <div className="size-full bg-stone-200" />
+          )}
+          {(props.editing || it.caption) && (
+            <div
+              className={
+                'absolute inset-x-0 bottom-0 z-[1] px-2 py-1 text-xs leading-snug ' +
+                (fill.claude ? 'bg-sky-100/90 text-sky-800' : 'bg-white/90')
+              }>
+              {props.editing ? (
+                <Editor
+                  initial={it.caption ?? ''}
+                  onDone={(text) => props.onEditCommit(it.id, text)}
+                  label="Caption"
+                  className="w-full"
+                />
+              ) : (
+                it.caption
+              )}
+            </div>
+          )}
+        </>
+      )}
+      {kind !== 'image' && (
       <div className={'relative z-[1] min-w-0 ' + (kind === 'shape' ? 'w-full' : '')}>
         {kind === 'text' && it.by === 'claude' && (
           <div className="mb-1 font-mono text-[9.5px] font-medium tracking-widest text-sky-700 uppercase">
@@ -494,6 +543,7 @@ export default function BoardItem(props: Props) {
         )}
         {body}
       </div>
+      )}
       {props.selected ? (
         <div
           className={

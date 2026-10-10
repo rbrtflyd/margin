@@ -109,6 +109,8 @@ interface Props {
   onEditCommit(id: string, text: string): void;
   onViewChange(v: View): void;
   onZoom(k: number): void;
+  assetUrls?: Record<string, string>;
+  onDropImages(files: File[], at: Pt): void;
 }
 
 function ArrowMark({
@@ -894,6 +896,19 @@ export default function Canvas(props: Props) {
       onPointerDown={onPointerDown}
       onPointerLeave={() => setHoverId(null)}
       onDoubleClick={onDoubleClick}
+      onDragOver={(e) => {
+        if ([...e.dataTransfer.types].includes('Files')) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        if (![...e.dataTransfer.types].includes('Files')) return;
+        e.preventDefault();
+        const files = [...e.dataTransfer.files].filter((f) =>
+          f.type.startsWith('image/'),
+        );
+        if (!files.length) return;
+        const at = ctxRef.current.toWorld(e.clientX, e.clientY);
+        propsRef.current.onDropImages(files, at);
+      }}
       onContextMenu={(e) => {
         if (!isEditable(e.target)) e.preventDefault();
       }}>
@@ -1080,6 +1095,11 @@ export default function Canvas(props: Props) {
               flashing={flash.has(it.id)}
               offset={off}
               zoom={view.k}
+              src={
+                it.assetId
+                  ? props.assetUrls?.[it.assetId]
+                  : props.assetUrls?.[it.id]
+              }
               onEditCommit={(id, text) =>
                 propsRef.current.onEditCommit(id, text)
               }

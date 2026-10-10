@@ -5,6 +5,7 @@ import {
   FILLS,
   fontPx,
   forgetSize,
+  isBox,
   mapBox,
   paintOf,
   rememberSize,
@@ -59,6 +60,15 @@ describe('applyResize', () => {
     expect(applyResize(start, 'se', 20, 5, true)).toEqual({
       x: 0,
       y: 0,
+      w: 120,
+      h: 96,
+    });
+  });
+
+  it('keeps the aspect ratio on an edge handle', () => {
+    expect(applyResize(start, 'e', 20, 0, true)).toEqual({
+      x: 0,
+      y: -8,
       w: 120,
       h: 96,
     });
@@ -121,6 +131,15 @@ describe('scaleItem', () => {
     );
     expect(next.start).toEqual({ itemId: 'n', side: 'e' });
     expect(next.end).toEqual({ x: 100, y: 20 });
+  });
+});
+
+describe('isBox', () => {
+  it('includes images, link cards, and embeds', () => {
+    expect(isBox(box({ id: 'i1', kind: 'image' }))).toBe(true);
+    expect(isBox(box({ id: 'l1', kind: 'link' }))).toBe(true);
+    expect(isBox(box({ id: 'e1', kind: 'embed' }))).toBe(true);
+    expect(isBox(box({ id: 'c1', kind: 'connector' }))).toBe(false);
   });
 });
 

@@ -1,8 +1,10 @@
 'use client';
 
+import { useRef } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   Cursor01Icon,
+  Image01Icon,
   LineIcon,
   StickyNote01Icon,
   TextIcon,
@@ -57,9 +59,11 @@ interface Props {
   onFit(): void;
   snapGrid: boolean;
   onSnapGrid(on: boolean): void;
+  onPickImages(files: File[]): void;
 }
 
 export default function CanvasToolbar(props: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
   const shape = props.tool.type === 'shape' ? props.tool.shape : 'rect';
   const route: Route =
     props.tool.type === 'connector' ? props.tool.route : 'straight';
@@ -173,6 +177,30 @@ export default function CanvasToolbar(props: Props) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = '';
+          if (files.length) props.onPickImages(files);
+        }}
+      />
+      <button
+        type="button"
+        className={btn}
+        title="Image"
+        onClick={() => fileRef.current?.click()}>
+        <HugeiconsIcon
+          icon={Image01Icon}
+          size={16}
+          strokeWidth={2}
+        />
+        <span className="max-sm:hidden">Image</span>
+      </button>
       <button
         type="button"
         className={

@@ -4,6 +4,7 @@ import {
   applyResize,
   boundsOf,
   isBox,
+  itemKind,
   storedRect,
   unionRect,
   type Rect,
@@ -63,12 +64,19 @@ function liveBox(
   },
 ): Rect {
   const k = ctx.viewRef.current.k;
+  const items = ctx.propsRef.current.items;
+  const lockRatio =
+    d.ids.length > 0 &&
+    d.ids.every((id) => {
+      const it = items.find((i) => i.id === id);
+      return it && itemKind(it) === 'image';
+    });
   let box = applyResize(
     { x: d.x, y: d.y, w: d.w, h: d.h },
     d.handle,
     (e.clientX - d.sx) / k,
     (e.clientY - d.sy) / k,
-    e.shiftKey,
+    lockRatio ? !e.shiftKey : e.shiftKey,
     undefined,
     e.altKey,
   );

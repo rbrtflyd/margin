@@ -14,6 +14,9 @@ import type {
 export const STICKY_SIZE = 160;
 export const STICKY_WIDE = 320;
 export const SHAPE_SIZE = 140;
+export const IMAGE_SIZE = 320;
+export const LINK_W = 280;
+export const LINK_H = 160;
 export const MIN_SIZE = 40;
 export const FONT_PX: Record<FontSize, number> = {
   s: 12,
@@ -134,7 +137,14 @@ export function styleOf(item: Item): ItemStyle {
 
 export function isBox(it: Pick<Item, 'kind'>): boolean {
   const k = itemKind(it);
-  return k === 'text' || k === 'sticky' || k === 'shape';
+  return (
+    k === 'text' ||
+    k === 'sticky' ||
+    k === 'shape' ||
+    k === 'image' ||
+    k === 'link' ||
+    k === 'embed'
+  );
 }
 
 export const FILL_ORDER: Fill[] = [
@@ -185,6 +195,22 @@ export function storedRect(it: Item): Rect {
       y: it.y,
       w: it.w ?? SHAPE_SIZE,
       h: it.h ?? SHAPE_SIZE,
+    };
+  }
+  if (kind === 'image') {
+    return {
+      x: it.x,
+      y: it.y,
+      w: it.w ?? IMAGE_SIZE,
+      h: it.h ?? IMAGE_SIZE,
+    };
+  }
+  if (kind === 'link' || kind === 'embed') {
+    return {
+      x: it.x,
+      y: it.y,
+      w: it.w ?? LINK_W,
+      h: it.h ?? LINK_H,
     };
   }
   return { x: it.x, y: it.y, w: it.w ?? 160, h: it.h ?? 28 };
@@ -250,18 +276,28 @@ export function applyResize(
       y = orig.y + dy;
     }
   }
-  if (keepRatio && handle.length === 2 && orig.w > 0 && orig.h > 0) {
-    const sx = w / orig.w;
-    const sy = h / orig.h;
-    const s = Math.abs(sx) > Math.abs(sy) ? sx : sy;
-    w = orig.w * s;
-    h = orig.h * s;
-    if (fromCenter) {
-      x = orig.x + orig.w / 2 - w / 2;
-      y = orig.y + orig.h / 2 - h / 2;
-    } else {
-      if (handle.includes('w')) x = orig.x + orig.w - w;
-      if (handle.includes('n')) y = orig.y + orig.h - h;
+  if (keepRatio && orig.w > 0 && orig.h > 0) {
+    if (handle.length === 2) {
+      const sx = w / orig.w;
+      const sy = h / orig.h;
+      const s = Math.abs(sx) > Math.abs(sy) ? sx : sy;
+      w = orig.w * s;
+      h = orig.h * s;
+      if (fromCenter) {
+        x = orig.x + orig.w / 2 - w / 2;
+        y = orig.y + orig.h / 2 - h / 2;
+      } else {
+        if (handle.includes('w')) x = orig.x + orig.w - w;
+        if (handle.includes('n')) y = orig.y + orig.h - h;
+      }
+    } else if (handle === 'e' || handle === 'w') {
+      h = w * (orig.h / orig.w);
+      if (fromCenter) y = orig.y + orig.h / 2 - h / 2;
+      else y = orig.y + (orig.h - h) / 2;
+    } else if (handle === 'n' || handle === 's') {
+      w = h * (orig.w / orig.h);
+      if (fromCenter) x = orig.x + orig.w / 2 - w / 2;
+      else x = orig.x + (orig.w - w) / 2;
     }
   }
   if (w < min) {

@@ -17,6 +17,7 @@ import type {
   View,
 } from '@/lib/types';
 import { FORMAT_EVENT, wrapSelection, type FormatKind } from '@/lib/format';
+import { boardSize, encodeWebp, uploadAsset } from '@/lib/images';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import {
   compactItem,
@@ -90,6 +91,11 @@ export default function Margin({ user }: { user: User | null }) {
   const [stickyStyle, setStickyStyle] = useState<ItemStyle>({ fill: 'amber' });
   const [shapeStyle, setShapeStyle] = useState<ItemStyle>({ fill: 'white' });
   const [textStyle, setTextStyle] = useState<ItemStyle>({});
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const previewsRef = useRef(previews);
+  previewsRef.current = previews;
+  const previewBlobs = useRef(new Map<string, Blob>());
+  const uploads = useRef(new Map<string, Promise<string>>());
   const copiedStyle = useRef<ItemStyle | null>(null);
   const canvasApi = useRef<CanvasApi | null>(null);
   const histories = useRef(new Map<string, History>());
@@ -109,6 +115,21 @@ export default function Margin({ user }: { user: User | null }) {
   const setCurrentRemote = useMutation(api.boards.mutations.setCurrentBoard);
   const createRemote = useMutation(api.boards.mutations.create);
   const removeRemote = useMutation(api.boards.mutations.remove);
+  const generateUploadUrl = useMutation(api.assets.generateUploadUrl);
+  const saveAsset = useMutation(api.assets.save);
+  const assetIds = [
+    ...new Set(
+      (store?.boards.find((b) => b.id === store.currentId)?.items ?? [])
+        .map((i) => i.assetId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const remoteUrls = useQuery(
+    api.assets.urls,
+    isAuthenticated && assetIds.length
+      ? { ids: assetIds as Id<'_storage'>[] }
+      : 'skip',
+  );
 
   const dirtyGens = useRef(new Map<string, number>());
   const conflicted = useRef(new Set<string>());
@@ -255,6 +276,23 @@ export default function Margin({ user }: { user: User | null }) {
   }, [store, scheduleSave]);
 
   useEffect(() => {
+    const items = store?.boards.find((b) => b.id === store.currentId)?.items ?? [];
+    setPreviews((p) => {
+      const next: Record<string, string> = {};
+      for (const [id, url] of Object.entries(p)) {
+        const it = items.find((i) => i.id === id);
+        if (!it) continue;
+        if (it.assetId && remoteUrls?.[it.assetId]) continue;
+        next[id] = url;
+      }
+      for (const url of new Set(Object.values(p))) {
+        if (!Object.values(next).includes(url)) URL.revokeObjectURL(url);
+      }
+      return Object.keys(next).length === Object.keys(p).length ? p : next;
+    });
+  }, [store, remoteUrls]);
+
+  useEffect(() => {
     const onOnline = () => {
       online.current = true;
       networkError.current = false;
@@ -384,6 +422,8 @@ export default function Margin({ user }: { user: User | null }) {
     const kind = draft.kind ?? 'text';
     const last = lastFor(kind);
     const boxKind = kind === 'text' || kind === 'sticky' || kind === 'shape';
+    const media =
+      kind === 'image' || kind === 'link' || kind === 'embed';
     const item = compactItem({
       id: uid(kind === 'text' ? 't_' : kind[0] + '_'),
       x: Math.round(draft.x),
@@ -408,9 +448,13 @@ export default function Margin({ user }: { user: User | null }) {
       route: draft.route,
       start: draft.start,
       end: draft.end,
+      assetId: draft.assetId,
+      caption: draft.caption,
     });
     rememberStyle(item);
-    const startEdit = draft.edit === true || (draft.edit !== false && kind !== 'connector' && !item.text);
+    const startEdit =
+      draft.edit === true ||
+      (draft.edit !== false && kind !== 'connector' && !media && !item.text);
     if (startEdit) {
       editSnapshot.current = { id: item.id, items: b.items, isNew: true };
       commitItems((items) => [...items, item], false);
@@ -425,6 +469,87 @@ export default function Margin({ user }: { user: User | null }) {
 
   const createAt = (p: Pt, text = '', by: Author = 'me') =>
     createItem({ kind: 'text', x: p.x, y: p.y, text, by, edit: !text });
+
+  const persistPreview = (previewUrl: string) => {
+    let job = uploads.current.get(previewUrl);
+    if (!job) {
+      job = (async () => {
+        const blob = previewBlobs.current.get(previewUrl);
+        if (!blob) throw new Error('Upload failed');
+        const postUrl = await generateUploadUrl();
+        const storageId = await uploadAsset(blob, postUrl);
+        await saveAsset({ storageId: storageId as Id<'_storage'> });
+        return storageId;
+      })();
+      uploads.current.set(previewUrl, job);
+    }
+    void job.then(
+      (storageId) => {
+        const ids = Object.entries(previewsRef.current)
+          .filter(([, url]) => url === previewUrl)
+          .map(([id]) => id);
+        commitItems(
+          (items) =>
+            items.map((i) =>
+              ids.includes(i.id) && !i.assetId
+                ? compactItem({ ...i, assetId: storageId, editedAt: nowISO() })
+                : i,
+            ),
+          false,
+        );
+        previewBlobs.current.delete(previewUrl);
+        uploads.current.delete(previewUrl);
+      },
+      () => {
+        uploads.current.delete(previewUrl);
+        toast.add({
+          type: 'error',
+          title: 'Couldn’t upload that image',
+          actionProps: {
+            children: 'Retry',
+            onClick: () => persistPreview(previewUrl),
+          },
+        });
+      },
+    );
+  };
+
+  const addImageAt = async (file: File, at: Pt) => {
+    if (!file.type.startsWith('image/')) return;
+    let encoded: { blob: Blob; w: number; h: number };
+    try {
+      encoded = await encodeWebp(file);
+    } catch {
+      toast.add({ type: 'error', title: 'Couldn’t read that image' });
+      return;
+    }
+    const size = boardSize(encoded.w, encoded.h);
+    const preview = URL.createObjectURL(encoded.blob);
+    const id = createItem({
+      kind: 'image',
+      x: at.x,
+      y: at.y,
+      w: size.w,
+      h: size.h,
+      edit: false,
+    });
+    if (!id) {
+      URL.revokeObjectURL(preview);
+      return;
+    }
+    previewBlobs.current.set(preview, encoded.blob);
+    previewsRef.current = { ...previewsRef.current, [id]: preview };
+    setPreviews(previewsRef.current);
+    persistPreview(preview);
+  };
+
+  const addImages = (files: File[], at: Pt) => {
+    void (async () => {
+      for (let i = 0; i < files.length; i++) {
+        await addImageAt(files[i], { x: at.x + i * 24, y: at.y + i * 24 });
+      }
+    })();
+  };
 
   const quickCreate = (sourceId: string, side: Side) => {
     const b = currentBoard();
@@ -500,6 +625,23 @@ export default function Margin({ user }: { user: User | null }) {
     const cur = b.items.find((i) => i.id === id);
     if (!cur) return;
     const text = raw.replace(/ /g, ' ').replace(/^\n+/, '').replace(/\s+$/, '');
+    if (itemKind(cur) === 'image') {
+      const caption = text.trim() || undefined;
+      if ((cur.caption ?? '') === (caption ?? '')) return;
+      const edited = (items: Item[]) =>
+        items.map((i) =>
+          i.id === id
+            ? compactItem({ ...i, caption, editedAt: nowISO() })
+            : i,
+        );
+      if (snap && snap.isNew) {
+        pushHistory(b.id, snap.items);
+        commitItems(edited, false);
+      } else {
+        commitItems(edited, true);
+      }
+      return;
+    }
     if (!text.trim() && itemKind(cur) === 'text') {
       // An emptied box goes away. A brand-new empty box leaves no trace in undo.
       commitItems(
@@ -552,6 +694,14 @@ export default function Margin({ user }: { user: User | null }) {
     const set = new Set(ids);
     const source = b.items.filter((i) => set.has(i.id));
     const copies = cloneItems(source, b.items).map((i) => shiftItem(i, dx, dy));
+    setPreviews((p) => {
+      const next = { ...p };
+      source.forEach((s, i) => {
+        const copy = copies[i];
+        if (p[s.id] && copy && !copy.assetId) next[copy.id] = p[s.id];
+      });
+      return next;
+    });
     commitItems((items) => [...items, ...copies]);
     setSelected(new Set(copies.map((i) => i.id)));
   };
@@ -655,7 +805,13 @@ export default function Margin({ user }: { user: User | null }) {
         const w = Math.round(box.w);
         const h = Math.round(box.h);
         const kind = itemKind(i);
-        if (kind === 'shape') return { ...i, x, y, w, h };
+        if (
+          kind === 'shape' ||
+          kind === 'image' ||
+          kind === 'link' ||
+          kind === 'embed'
+        )
+          return { ...i, x, y, w, h };
         if (kind === 'sticky') {
           return handle.length === 2 ? { ...i, x, y, w, h } : { ...i, x, y, w };
         }
@@ -724,6 +880,7 @@ export default function Margin({ user }: { user: User | null }) {
             return i;
           if (patch.w === STICKY_WIDE && patch.h === undefined && kind !== 'sticky')
             return i;
+          if (patch.caption !== undefined && kind !== 'image') return i;
           const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
           rememberStyle(next);
           return next;
@@ -744,6 +901,8 @@ export default function Margin({ user }: { user: User | null }) {
       (items) =>
         items.map((i) => {
           if (!sel.has(i.id) || !isBox(i)) return i;
+          const k = itemKind(i);
+          if (k === 'image' || k === 'link' || k === 'embed') return i;
           const next = wrapSelection(i.text, 0, i.text.length, kind);
           return compactItem({ ...i, text: next.text, editedAt: nowISO() });
         }),
@@ -944,6 +1103,7 @@ export default function Margin({ user }: { user: User | null }) {
     nudgeSelected,
     pasteItems,
     writeSelection,
+    addImages,
     restackSelected,
     toggleLockSelected,
     groupSelected,
@@ -962,6 +1122,7 @@ export default function Margin({ user }: { user: User | null }) {
     nudgeSelected,
     pasteItems,
     writeSelection,
+    addImages,
     restackSelected,
     toggleLockSelected,
     groupSelected,
@@ -1121,6 +1282,14 @@ export default function Margin({ user }: { user: User | null }) {
           return;
         }
       }
+      const image =
+        [...data.items].find((it) => it.type.startsWith('image/')) ?? null;
+      const imageFile = image?.getAsFile() ?? data.files[0] ?? null;
+      if (imageFile && imageFile.type.startsWith('image/')) {
+        e.preventDefault();
+        a.addImages([imageFile], a.dropPoint());
+        return;
+      }
       const text = data.getData('text/plain');
       if (!text.trim()) return;
       e.preventDefault();
@@ -1193,6 +1362,8 @@ export default function Margin({ user }: { user: User | null }) {
         onEditCommit={commitEdit}
         onViewChange={(v: View) => patchBoard(board.id, { view: v })}
         onZoom={setZoom}
+        assetUrls={{ ...(remoteUrls ?? {}), ...previews }}
+        onDropImages={addImages}
       />
 
       {board.items.length === 0 && !editingId && (
@@ -1236,6 +1407,7 @@ export default function Margin({ user }: { user: User | null }) {
         onFit={() => canvasApi.current?.fit()}
         snapGrid={snapGrid}
         onSnapGrid={setSnapGrid}
+        onPickImages={(files) => addImages(files, dropPoint())}
       />
 
       <AskPanel

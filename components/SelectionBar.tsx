@@ -97,6 +97,7 @@ export default function SelectionBar(props: Props) {
     return k === 'text' || k === 'sticky' || k === 'shape';
   });
   const routes = props.items.filter((i) => itemKind(i) === 'connector');
+  const images = props.items.filter((i) => itemKind(i) === 'image');
   const fill = shared(fillables, effectiveFill);
   const stroke = shared(shapes, (i) => i.stroke ?? null);
   const strokeWidth = shared(shapes, (i) => i.strokeWidth ?? null);
@@ -522,6 +523,21 @@ export default function SelectionBar(props: Props) {
               Link
             </button>
           </>
+        )}
+        {images.length === 1 && (
+          <input
+            type="text"
+            value={images[0].caption ?? ''}
+            placeholder="Caption"
+            aria-label="Caption"
+            className="w-36 rounded-lg border-0 bg-transparent px-2 py-1 text-[12.5px] outline-none placeholder:text-zinc-400"
+            onChange={(e) =>
+              props.onPatchAll(
+                { caption: e.target.value || undefined },
+                'caption',
+              )
+            }
+          />
         )}
         {props.items.some((i) => itemKind(i) === 'sticky') && (
           <button

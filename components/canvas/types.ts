@@ -29,6 +29,8 @@ export type CreateDraft = {
   h?: number;
   text?: string;
   by?: Author;
+  assetId?: string;
+  caption?: string;
   shape?: ShapeKind;
   fill?: Fill | 'none';
   stroke?: Stroke;

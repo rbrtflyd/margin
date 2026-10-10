@@ -16,6 +16,19 @@ function item(partial: Partial<Item> & Pick<Item, 'id'>): Item {
 }
 
 describe('cloneItems', () => {
+  it('copies assetId without minting a new one', () => {
+    const a = item({
+      id: 'i_a',
+      kind: 'image',
+      assetId: 'kg123',
+      w: 320,
+      h: 240,
+    });
+    const [copy] = cloneItems([a], [a]);
+    expect(copy.id).not.toBe('i_a');
+    expect(copy.assetId).toBe('kg123');
+  });
+
   it('assigns new ids and keeps text', () => {
     const a = item({ id: 't_a', x: 10, y: 20, text: 'hello', w: 80 });
     const [copy] = cloneItems([a], [a]);

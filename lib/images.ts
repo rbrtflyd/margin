@@ -1,4 +1,5 @@
 export const MAX_EDGE = 2048;
+export const IMAGE_FIT = 320;
 export const ASSET_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function fitWithin(
@@ -14,6 +15,32 @@ export function fitWithin(
     w: Math.max(1, Math.round(w * s)),
     h: Math.max(1, Math.round(h * s)),
   };
+}
+
+/** World-unit size: long side is `target` (default 320). */
+export function boardSize(
+  w: number,
+  h: number,
+  target = IMAGE_FIT,
+): { w: number; h: number } {
+  if (!(w > 0) || !(h > 0)) return { w: target, h: target };
+  const s = target / Math.max(w, h);
+  return {
+    w: Math.max(1, Math.round(w * s)),
+    h: Math.max(1, Math.round(h * s)),
+  };
+}
+
+export async function uploadAsset(blob: Blob, uploadUrl: string): Promise<string> {
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type || 'image/webp' },
+    body: blob,
+  });
+  if (!res.ok) throw new Error('Upload failed');
+  const data = (await res.json()) as { storageId?: string };
+  if (!data.storageId) throw new Error('Upload failed');
+  return data.storageId;
 }
 
 export function referencedAssetIds(
