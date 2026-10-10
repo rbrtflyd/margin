@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { ConvexReactClient } from 'convex/react';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { authClient } from '@/lib/auth/client';
+import { Toaster } from '@/components/ui/toast';
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -16,7 +17,7 @@ export function ConvexClientProvider({
 }) {
   return (
     <ConvexBetterAuthProvider client={convex} authClient={authClient} initialToken={initialToken}>
-      {children}
+      <Toaster>{children}</Toaster>
     </ConvexBetterAuthProvider>
   );
 }

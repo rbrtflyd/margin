@@ -8,7 +8,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 
 | ID | Workstream | Depends on | Status |
 | --- | --- | --- | --- |
-| 0A | Save one board at a time | none | open |
+| 0A | Save one board at a time | none | in progress (roadmap/0a) |
 | 0B | Split `Canvas.tsx` into interaction modules | none | open |
 | 0C | Bounds layer and canvas bug fixes | 0B | open |
 | 0D | Item schema v2 | none | open |
