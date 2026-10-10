@@ -1,6 +1,6 @@
 # Margin: notes for agents
 
-Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (managed Better Auth) via `@neondatabase/auth`. UI is Tailwind CSS v4 (stone paper, zinc ink, sky for the assistant). `app/globals.css` only has fonts, the flash animation, and base html/body.
+Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Storage is Convex. Auth is Better Auth on Convex via `@convex-dev/better-auth`. UI is Tailwind CSS v4 (stone paper, zinc ink, sky for the assistant). `app/globals.css` only has fonts, the flash animation, and base html/body.
 
 ## Product rules to keep intact
 
@@ -13,5 +13,6 @@ Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (
 
 - All board writes in `components/Margin.tsx` go through `commitItems`, which records undo history when `record` is true.
 - Canvas coordinates are world units; `view` is `{ x, y, k }` (translate, then scale).
-- `auth` from `lib/auth/server.ts` is `null` when the Neon Auth env vars are missing; every caller handles that case so the app still runs signed-out.
-- The API key never reaches the client. `/api/ask` requires a session when auth is on, and `APP_PASSCODE` on Vercel when it's off.
+- Sign-in is required: `proxy.ts` redirects signed-out pages, and Convex functions call `requireUserId`.
+- The API key never reaches the client. `/api/ask` checks `isAuthenticated()` from `lib/auth/server.ts`.
+- Product direction is in `docs/brief.md`; the whiteboard plan, split into workstreams agents can claim, is in `docs/roadmap.md`.
