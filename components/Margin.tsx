@@ -28,6 +28,7 @@ import {
   shiftItem,
   unionBounds,
 } from '@/lib/clipboard';
+import { restack, unlockedIds, type RestackDir } from '@/lib/stack';
 import Canvas from './Canvas';
 import type { CanvasApi, CreateDraft, Pt } from './Canvas';
 import { toast } from '@/components/ui/toast';
@@ -465,9 +466,59 @@ export default function Margin({ user }: { user: User | null }) {
   };
 
   const nudgeSelected = (dx: number, dy: number) => {
-    const ids = Array.from(selectedRef.current);
+    const b = currentBoard();
+    if (!b) return;
+    const ids = unlockedIds(b.items, selectedRef.current);
     if (!ids.length) return;
     moveItems(ids, dx, dy, 'nudge');
+  };
+
+  const restackSelected = (dir: RestackDir) => {
+    const sel = selectedRef.current;
+    if (!sel.size) return;
+    commitItems((items) => restack(items, sel, dir));
+  };
+
+  const toggleLockSelected = () => {
+    const sel = selectedRef.current;
+    if (!sel.size) return;
+    commitItems((items) => {
+      const picked = items.filter((i) => sel.has(i.id));
+      const nextLocked = !picked.every((i) => i.locked);
+      return items.map((i) =>
+        sel.has(i.id)
+          ? compactItem({
+              ...i,
+              locked: nextLocked ? true : undefined,
+              editedAt: nowISO(),
+            })
+          : i,
+      );
+    });
+  };
+
+  const groupSelected = () => {
+    const sel = selectedRef.current;
+    if (sel.size < 2) return;
+    const gid = uid('g_');
+    commitItems((items) =>
+      items.map((i) =>
+        sel.has(i.id) ? compactItem({ ...i, groupId: gid }) : i,
+      ),
+    );
+  };
+
+  const ungroupSelected = () => {
+    const sel = selectedRef.current;
+    if (!sel.size) return;
+    commitItems((items) =>
+      items.map((i) => {
+        if (!sel.has(i.id) || !i.groupId) return i;
+        const next = { ...i };
+        delete next.groupId;
+        return compactItem(next);
+      }),
+    );
   };
 
   const pasteItems = (source: Item[]) => {
@@ -725,6 +776,10 @@ export default function Margin({ user }: { user: User | null }) {
     nudgeSelected,
     pasteItems,
     writeSelection,
+    restackSelected,
+    toggleLockSelected,
+    groupSelected,
+    ungroupSelected,
   });
   actions.current = {
     deleteSelected,
@@ -737,6 +792,10 @@ export default function Margin({ user }: { user: User | null }) {
     nudgeSelected,
     pasteItems,
     writeSelection,
+    restackSelected,
+    toggleLockSelected,
+    groupSelected,
+    ungroupSelected,
   };
   const askOpenRef = useRef(askOpen);
   askOpenRef.current = askOpen;
@@ -781,6 +840,30 @@ export default function Margin({ user }: { user: User | null }) {
       if (mod && key === 'd') {
         e.preventDefault();
         a.duplicateSelected();
+        return;
+      }
+      if (mod && (e.code === 'BracketRight' || e.code === 'BracketLeft')) {
+        e.preventDefault();
+        a.restackSelected(
+          e.code === 'BracketRight'
+            ? e.shiftKey
+              ? 'front'
+              : 'forward'
+            : e.shiftKey
+              ? 'backmost'
+              : 'back',
+        );
+        return;
+      }
+      if (mod && e.shiftKey && key === 'l') {
+        e.preventDefault();
+        a.toggleLockSelected();
+        return;
+      }
+      if (mod && key === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) a.ungroupSelected();
+        else a.groupSelected();
         return;
       }
       if (mod || e.altKey) return;
@@ -913,6 +996,7 @@ export default function Margin({ user }: { user: User | null }) {
         onResizeAll={resizeAll}
         onPatch={patchItem}
         onPatchAll={patchSelected}
+        onToggleLock={toggleLockSelected}
         onEditStart={startEdit}
         onEditCommit={commitEdit}
         onViewChange={(v: View) => patchBoard(board.id, { view: v })}

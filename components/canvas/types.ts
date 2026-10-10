@@ -110,6 +110,7 @@ export type CanvasProps = {
   onResizeAll(ids: string[], from: Rect, to: Rect): void;
   onPatch(id: string, patch: Partial<Item>): void;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
+  onToggleLock(): void;
 };
 
 export type InteractionCtx = {

@@ -8,6 +8,7 @@ interface Props {
   left: number;
   top: number;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
+  onToggleLock(): void;
 }
 
 function effectiveFill(it: Item): Fill {
@@ -33,9 +34,11 @@ export default function SelectionBar(props: Props) {
     return k === 'sticky' || k === 'shape';
   });
   const routes = props.items.filter((i) => itemKind(i) === 'connector');
-  if (!fillables.length && !routes.length) return null;
   const fill = sharedFill(fillables);
   const route = sharedRoute(routes);
+  const allLocked =
+    props.items.length > 0 && props.items.every((i) => i.locked);
+  if (!fillables.length && !routes.length && !props.items.length) return null;
 
   return (
     <div
@@ -77,6 +80,17 @@ export default function SelectionBar(props: Props) {
             </button>
           </>
         )}
+        {(fillables.length > 0 || routes.length > 0) && (
+          <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden="true" />
+        )}
+        <button
+          type="button"
+          className="rounded-lg border-0 bg-transparent px-2 py-1 text-[12.5px] hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100"
+          aria-pressed={allLocked}
+          aria-label={allLocked ? 'Unlock' : 'Lock'}
+          onClick={props.onToggleLock}>
+          {allLocked ? 'Unlock' : 'Lock'}
+        </button>
       </div>
     </div>
   );

@@ -82,6 +82,7 @@ interface Props {
   onResizeAll(ids: string[], from: Rect, to: Rect): void;
   onPatch(id: string, patch: Partial<Item>): void;
   onPatchAll(patch: Partial<Item>, coalesceKey?: string): void;
+  onToggleLock(): void;
   onEditStart(id: string): void;
   onEditCommit(id: string, text: string): void;
   onViewChange(v: View): void;
@@ -634,6 +635,16 @@ export default function Canvas(props: Props) {
     const itemEl = target.closest<HTMLElement>('[data-item]');
     const id = itemEl ? itemEl.dataset.item : undefined;
     if (id) {
+      const it = p.items.find((i) => i.id === id);
+      const grouped =
+        it?.groupId &&
+        p.items.some(
+          (i) => i.groupId === it.groupId && i.id !== id && p.selected.has(i.id),
+        );
+      if (grouped) {
+        p.onSelect(new Set([id]));
+        return;
+      }
       p.onEditStart(id);
       return;
     }
@@ -955,6 +966,7 @@ export default function Canvas(props: Props) {
             left={barLeft}
             top={barTop}
             onPatchAll={props.onPatchAll}
+            onToggleLock={props.onToggleLock}
           />
         )}
     </div>

@@ -15,7 +15,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 0E | Geometry tests and undo coalescing | 0A | done |
 | 1A | Duplicate, nudge, copy and paste items | 0B | done |
 | 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | done |
-| 1C | Stacking order, lock, group | 0B, 0D | open |
+| 1C | Stacking order, lock, group | 0B, 0D | done |
 | 1D | Align, distribute, smart guides, grid | 0C | open |
 | 2A | Shapes rendered as SVG, more shapes | 0D | open |
 | 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | open |
@@ -146,9 +146,9 @@ Done when `npm test` passes, and holding an arrow key creates one undo step inst
 
 ### 1C. Stacking order, lock, group
 
-- [ ] Stacking order is array order. Cmd+] and Cmd+[ move forward and back; Cmd+Shift+] and Cmd+Shift+[ move to the front and back. Connectors stay under items.
-- [ ] Lock and unlock with Cmd+Shift+L. Locked items can't be moved, resized, or picked up by the marquee, but can still be selected by clicking.
-- [ ] Group and ungroup with Cmd+G and Cmd+Shift+G, using `groupId`. Clicking selects the whole group; double-clicking selects one item inside it.
+- [x] Stacking order is array order. Cmd+] and Cmd+[ move forward and back; Cmd+Shift+] and Cmd+Shift+[ move to the front and back. Connectors stay under items.
+- [x] Lock and unlock with Cmd+Shift+L. Locked items can't be moved, resized, or picked up by the marquee, but can still be selected by clicking.
+- [x] Group and ungroup with Cmd+G and Cmd+Shift+G, using `groupId`. Clicking selects the whole group; double-clicking selects one item inside it.
 
 ### 1D. Align, distribute, smart guides, grid
 

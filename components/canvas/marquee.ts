@@ -56,6 +56,7 @@ export function moveMarquee(
   const hits = new Set(d.base);
   const rects = ctx.currentRects();
   for (const it of ctx.propsRef.current.items) {
+    if (it.locked) continue;
     if (itemKind(it) === 'connector') {
       const s = resolveAnchor(it.start, rects, { x: it.x, y: it.y });
       const end = resolveAnchor(it.end, rects, { x: it.x, y: it.y });

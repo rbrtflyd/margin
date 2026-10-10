@@ -6,6 +6,7 @@ import {
   unionRect,
   type Rect,
 } from '@/lib/items';
+import { unlockedIds } from '@/lib/stack';
 import type { Drag, InteractionCtx } from './types';
 
 function origBox(
@@ -29,11 +30,13 @@ export function startResize(
   handle: Handle,
   e: { clientX: number; clientY: number },
 ): Drag | null {
-  const box = origBox(ctx, ids);
+  const movable = unlockedIds(ctx.propsRef.current.items, ids);
+  if (!movable.length) return null;
+  const box = origBox(ctx, movable);
   if (!box) return null;
   return {
     kind: 'resize',
-    ids,
+    ids: movable,
     handle,
     sx: e.clientX,
     sy: e.clientY,
