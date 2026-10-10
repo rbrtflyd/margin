@@ -17,6 +17,23 @@ export const FILLS: Record<Fill, { bg: string; ink: string }> = {
   white: { bg: '#ffffff', ink: '#18181b' },
 };
 
+/** Paint tokens for an item. Claude always uses sky, ignoring style fields. */
+export function paintOf(item: Item): { bg: string; ink: string; claude: boolean } {
+  if (item.by === 'claude') return { ...FILLS.sky, claude: true };
+  const name =
+    item.fill && item.fill !== 'none'
+      ? item.fill
+      : itemKind(item) === 'sticky'
+        ? 'amber'
+        : 'white';
+  return { ...FILLS[name], claude: false };
+}
+
+export function isBox(it: Pick<Item, 'kind'>): boolean {
+  const k = itemKind(it);
+  return k === 'text' || k === 'sticky' || k === 'shape';
+}
+
 export const FILL_ORDER: Fill[] = [
   'white',
   'amber',
@@ -138,8 +155,24 @@ export function compactItem(i: Item): Item {
   if (i.kind) out.kind = i.kind;
   if (i.shape) out.shape = i.shape;
   if (i.fill) out.fill = i.fill;
+  if (i.stroke) out.stroke = i.stroke;
+  if (i.strokeWidth) out.strokeWidth = i.strokeWidth;
+  if (i.strokeStyle) out.strokeStyle = i.strokeStyle;
+  if (i.textColor) out.textColor = i.textColor;
+  if (i.fontSize) out.fontSize = i.fontSize;
+  if (i.align) out.align = i.align;
+  if (i.locked) out.locked = true;
+  if (i.groupId) out.groupId = i.groupId;
   if (i.route) out.route = i.route;
+  if (typeof i.bend === 'number') out.bend = i.bend;
+  if (typeof i.labelAt === 'number') out.labelAt = i.labelAt;
+  if (i.arrowStart) out.arrowStart = i.arrowStart;
+  if (i.arrowEnd) out.arrowEnd = i.arrowEnd;
   if (i.start) out.start = i.start;
   if (i.end) out.end = i.end;
+  if (i.assetId) out.assetId = i.assetId;
+  if (i.url) out.url = i.url;
+  if (i.meta) out.meta = i.meta;
+  if (i.caption) out.caption = i.caption;
   return out;
 }

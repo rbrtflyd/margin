@@ -1,4 +1,4 @@
-import { boundsOf, itemKind } from '@/lib/items';
+import { boundsOf, isBox, itemKind } from '@/lib/items';
 import {
   connectorPoints,
   resolveAnchor,
@@ -74,6 +74,7 @@ export function moveMarquee(
         hits.add(it.id);
       continue;
     }
+    if (!isBox(it)) continue;
     if (intersects(boundsOf(it), left, right, top, bottom)) hits.add(it.id);
   }
   ctx.previewRef.current = hits;

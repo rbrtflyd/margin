@@ -1,12 +1,19 @@
 import type {
+  Align,
   Anchor,
+  Arrowhead,
   Board,
   Fill,
+  FontSize,
   Item,
   ItemKind,
+  LinkMeta,
   Route,
   ShapeKind,
   Side,
+  Stroke,
+  StrokeStyle,
+  StrokeWidth,
 } from './types';
 import { compactItem } from './items';
 
@@ -23,7 +30,16 @@ export function newBoard(name = 'Untitled board'): Board {
   return { id: uid('b_'), name, items: [], view: null, asks: [], createdAt: t, updatedAt: t };
 }
 
-const KINDS: ItemKind[] = ['text', 'sticky', 'shape', 'connector'];
+const KINDS: ItemKind[] = [
+  'text',
+  'sticky',
+  'shape',
+  'connector',
+  'image',
+  'link',
+  'embed',
+  'section',
+];
 const SHAPES: ShapeKind[] = [
   'rect',
   'ellipse',
@@ -32,13 +48,19 @@ const SHAPES: ShapeKind[] = [
   'roundRect',
 ];
 const FILLS: Fill[] = ['amber', 'rose', 'sky', 'lime', 'stone', 'white'];
-const ROUTES: Route[] = ['straight', 'elbow'];
-const SIDES: Side[] = ['n', 'e', 's', 'w'];
+const FILL_OR_NONE = [...FILLS, 'none'] as const;
+const STROKES: Stroke[] = [...FILLS, 'ink', 'none'];
+const TEXT_COLORS = [...FILLS, 'ink'] as const;
+const STROKE_WIDTHS: StrokeWidth[] = [1, 2, 4];
+const STROKE_STYLES: StrokeStyle[] = ['solid', 'dashed', 'dotted'];
+const FONT_SIZES: FontSize[] = ['s', 'm', 'l', 'xl'];
+const ALIGNS: Align[] = ['left', 'center', 'right'];
+const ROUTES: Route[] = ['straight', 'elbow', 'curved'];
+const SIDES: (Side | 'auto')[] = ['n', 'e', 's', 'w', 'auto'];
+const ARROWS: Arrowhead[] = ['none', 'arrow', 'triangle', 'circle'];
 
-function asOne<T extends string>(x: unknown, allowed: T[]): T | undefined {
-  return typeof x === 'string' && (allowed as string[]).includes(x)
-    ? (x as T)
-    : undefined;
+function asOne<T extends string | number>(x: unknown, allowed: readonly T[]): T | undefined {
+  return (allowed as readonly unknown[]).includes(x) ? (x as T) : undefined;
 }
 
 function asAnchor(x: unknown): Anchor | undefined {
@@ -52,6 +74,18 @@ function asAnchor(x: unknown): Anchor | undefined {
     return { x: a.x, y: a.y };
   }
   return undefined;
+}
+
+function asMeta(x: unknown): LinkMeta | undefined {
+  if (!x || typeof x !== 'object') return undefined;
+  const m = x as Record<string, unknown>;
+  const meta: LinkMeta = {};
+  if (typeof m.title === 'string') meta.title = m.title;
+  if (typeof m.description === 'string') meta.description = m.description;
+  if (typeof m.siteName === 'string') meta.siteName = m.siteName;
+  if (typeof m.thumb === 'string') meta.thumb = m.thumb;
+  if (typeof m.provider === 'string') meta.provider = m.provider;
+  return meta;
 }
 
 function isItem(x: unknown): x is Item {
@@ -84,10 +118,26 @@ export function parseImport(text: string): Board | string {
       editedAt: typeof i.editedAt === 'string' ? i.editedAt : t,
       kind: asOne(i.kind, KINDS),
       shape: asOne(i.shape, SHAPES),
-      fill: asOne(i.fill, FILLS),
+      fill: asOne(i.fill, FILL_OR_NONE),
+      stroke: asOne(i.stroke, STROKES),
+      strokeWidth: asOne(i.strokeWidth, STROKE_WIDTHS),
+      strokeStyle: asOne(i.strokeStyle, STROKE_STYLES),
+      textColor: asOne(i.textColor, TEXT_COLORS),
+      fontSize: asOne(i.fontSize, FONT_SIZES),
+      align: asOne(i.align, ALIGNS),
+      locked: i.locked === true ? true : undefined,
+      groupId: typeof i.groupId === 'string' ? i.groupId : undefined,
       route: asOne(i.route, ROUTES),
+      bend: typeof i.bend === 'number' ? i.bend : undefined,
+      labelAt: typeof i.labelAt === 'number' ? i.labelAt : undefined,
+      arrowStart: asOne(i.arrowStart, ARROWS),
+      arrowEnd: asOne(i.arrowEnd, ARROWS),
       start: asAnchor(i.start),
       end: asAnchor(i.end),
+      assetId: typeof i.assetId === 'string' ? i.assetId : undefined,
+      url: typeof i.url === 'string' ? i.url : undefined,
+      meta: asMeta(i.meta),
+      caption: typeof i.caption === 'string' ? i.caption : undefined,
     }),
   );
   return {
@@ -97,5 +147,5 @@ export function parseImport(text: string): Board | string {
 }
 
 export function exportJSON(b: Board): string {
-  return JSON.stringify({ app: 'margin', version: 1, exportedAt: nowISO(), board: b }, null, 2);
+  return JSON.stringify({ app: 'margin', version: 2, exportedAt: nowISO(), board: b }, null, 2);
 }

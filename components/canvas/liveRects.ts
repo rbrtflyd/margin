@@ -1,5 +1,5 @@
 import type { Item } from '@/lib/types';
-import { boundsOf, itemKind, type Rect } from '@/lib/items';
+import { boundsOf, isBox, type Rect } from '@/lib/items';
 
 export function liveRects(
   items: Item[],
@@ -8,7 +8,7 @@ export function liveRects(
 ): Map<string, Rect> {
   const m = new Map<string, Rect>();
   for (const it of items) {
-    if (itemKind(it) === 'connector') continue;
+    if (!isBox(it)) continue;
     if (resize && resize.id === it.id) {
       m.set(it.id, {
         x: resize.x,

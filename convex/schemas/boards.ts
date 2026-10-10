@@ -8,9 +8,28 @@ const sideValidator = v.union(
   v.literal('w'),
 );
 
+const fillValidator = v.union(
+  v.literal('amber'),
+  v.literal('rose'),
+  v.literal('sky'),
+  v.literal('lime'),
+  v.literal('stone'),
+  v.literal('white'),
+);
+
 const anchorValidator = v.union(
-  v.object({ itemId: v.string(), side: sideValidator }),
+  v.object({
+    itemId: v.string(),
+    side: v.union(sideValidator, v.literal('auto')),
+  }),
   v.object({ x: v.number(), y: v.number() }),
+);
+
+const arrowValidator = v.union(
+  v.literal('none'),
+  v.literal('arrow'),
+  v.literal('triangle'),
+  v.literal('circle'),
 );
 
 export const itemValidator = v.object({
@@ -29,6 +48,10 @@ export const itemValidator = v.object({
       v.literal('sticky'),
       v.literal('shape'),
       v.literal('connector'),
+      v.literal('image'),
+      v.literal('link'),
+      v.literal('embed'),
+      v.literal('section'),
     ),
   ),
   shape: v.optional(
@@ -40,19 +63,42 @@ export const itemValidator = v.object({
       v.literal('roundRect'),
     ),
   ),
-  fill: v.optional(
-    v.union(
-      v.literal('amber'),
-      v.literal('rose'),
-      v.literal('sky'),
-      v.literal('lime'),
-      v.literal('stone'),
-      v.literal('white'),
-    ),
+  fill: v.optional(v.union(fillValidator, v.literal('none'))),
+  stroke: v.optional(v.union(fillValidator, v.literal('ink'), v.literal('none'))),
+  strokeWidth: v.optional(v.union(v.literal(1), v.literal(2), v.literal(4))),
+  strokeStyle: v.optional(
+    v.union(v.literal('solid'), v.literal('dashed'), v.literal('dotted')),
   ),
-  route: v.optional(v.union(v.literal('straight'), v.literal('elbow'))),
+  textColor: v.optional(v.union(fillValidator, v.literal('ink'))),
+  fontSize: v.optional(
+    v.union(v.literal('s'), v.literal('m'), v.literal('l'), v.literal('xl')),
+  ),
+  align: v.optional(
+    v.union(v.literal('left'), v.literal('center'), v.literal('right')),
+  ),
+  locked: v.optional(v.boolean()),
+  groupId: v.optional(v.string()),
+  route: v.optional(
+    v.union(v.literal('straight'), v.literal('elbow'), v.literal('curved')),
+  ),
+  bend: v.optional(v.number()),
+  labelAt: v.optional(v.number()),
+  arrowStart: v.optional(arrowValidator),
+  arrowEnd: v.optional(arrowValidator),
   start: v.optional(anchorValidator),
   end: v.optional(anchorValidator),
+  assetId: v.optional(v.string()),
+  url: v.optional(v.string()),
+  meta: v.optional(
+    v.object({
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      siteName: v.optional(v.string()),
+      thumb: v.optional(v.string()),
+      provider: v.optional(v.string()),
+    }),
+  ),
+  caption: v.optional(v.string()),
 });
 
 export const viewValidator = v.object({

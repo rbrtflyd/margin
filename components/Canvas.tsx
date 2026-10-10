@@ -17,6 +17,7 @@ import type {
 import {
   boundsOf,
   forgetSize,
+  isBox,
   itemKind,
   rememberSize,
   storedRect,
@@ -239,6 +240,7 @@ export default function Canvas(props: Props) {
         }
         continue;
       }
+      if (!isBox(it)) continue;
       const box = rects.get(it.id);
       const w = box ? box.w : 240;
       const h = box ? box.h : 40;
@@ -595,7 +597,7 @@ export default function Canvas(props: Props) {
 
   const shown = preview ?? props.selected;
   const flash = new Set(props.flash);
-  const nodes = props.items.filter((it) => itemKind(it) !== 'connector');
+  const nodes = props.items.filter((it) => isBox(it));
   const lines = props.items.filter((it) => itemKind(it) === 'connector');
   const rects = liveRects(props.items, dragging, resize);
   const cursor =

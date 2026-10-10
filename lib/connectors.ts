@@ -1,5 +1,5 @@
 import type { Anchor, Item, Route, Side } from './types';
-import { itemKind, storedRect, type Rect } from './items';
+import { isBox, storedRect, type Rect } from './items';
 
 export type Pt = { x: number; y: number };
 
@@ -8,7 +8,7 @@ export const STUB = 16;
 
 export function isAttach(
   a: Anchor,
-): a is { itemId: string; side: Side } {
+): a is { itemId: string; side: Side | 'auto' } {
   return 'itemId' in a;
 }
 
@@ -59,7 +59,8 @@ export function resolveAnchor(
   if (isAttach(anchor)) {
     const r = rects.get(anchor.itemId);
     if (!r) return { p: fallback, side: null };
-    return { p: sidePoint(r, anchor.side), side: anchor.side };
+    const side = anchor.side === 'auto' ? nearestSide(r, fallback) : anchor.side;
+    return { p: sidePoint(r, side), side };
   }
   return { p: { x: anchor.x, y: anchor.y }, side: null };
 }
@@ -187,14 +188,15 @@ export function detachAnchor(
   if (!anchor || !isAttach(anchor) || !gone.has(anchor.itemId)) return anchor;
   const r = rects.get(anchor.itemId);
   if (!r) return { x: 0, y: 0 };
-  const p = sidePoint(r, anchor.side);
+  const side = anchor.side === 'auto' ? nearestSide(r, { x: r.x + r.w / 2, y: r.y + r.h / 2 }) : anchor.side;
+  const p = sidePoint(r, side);
   return { x: Math.round(p.x), y: Math.round(p.y) };
 }
 
 export function nodeRects(items: Item[]): Map<string, Rect> {
   const m = new Map<string, Rect>();
   for (const it of items) {
-    if (itemKind(it) === 'connector') continue;
+    if (!isBox(it)) continue;
     m.set(it.id, storedRect(it));
   }
   return m;

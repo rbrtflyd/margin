@@ -7,16 +7,38 @@ export interface User {
   email: string;
 }
 
-export type ItemKind = 'text' | 'sticky' | 'shape' | 'connector';
+export type ItemKind =
+  | 'text'
+  | 'sticky'
+  | 'shape'
+  | 'connector'
+  | 'image'
+  | 'link'
+  | 'embed'
+  | 'section';
 export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'triangle' | 'roundRect';
 export type Fill = 'amber' | 'rose' | 'sky' | 'lime' | 'stone' | 'white';
-export type Route = 'straight' | 'elbow';
+export type Stroke = Fill | 'ink' | 'none';
+export type StrokeWidth = 1 | 2 | 4;
+export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
+export type FontSize = 's' | 'm' | 'l' | 'xl';
+export type Align = 'left' | 'center' | 'right';
+export type Route = 'straight' | 'elbow' | 'curved';
 export type Side = 'n' | 'e' | 's' | 'w';
 export type Handle = Side | 'ne' | 'nw' | 'se' | 'sw';
+export type Arrowhead = 'none' | 'arrow' | 'triangle' | 'circle';
 
 export type Anchor =
-  | { itemId: string; side: Side }
+  | { itemId: string; side: Side | 'auto' }
   | { x: number; y: number };
+
+export type LinkMeta = {
+  title?: string;
+  description?: string;
+  siteName?: string;
+  thumb?: string;
+  provider?: string;
+};
 
 export type Tool =
   | { type: 'select' }
@@ -39,10 +61,26 @@ export interface Item {
   editedAt: string;
   kind?: ItemKind;
   shape?: ShapeKind;
-  fill?: Fill;
+  fill?: Fill | 'none';
+  stroke?: Stroke;
+  strokeWidth?: StrokeWidth;
+  strokeStyle?: StrokeStyle;
+  textColor?: Fill | 'ink';
+  fontSize?: FontSize;
+  align?: Align;
+  locked?: boolean;
+  groupId?: string;
   route?: Route;
+  bend?: number;
+  labelAt?: number;
+  arrowStart?: Arrowhead;
+  arrowEnd?: Arrowhead;
   start?: Anchor;
   end?: Anchor;
+  assetId?: string;
+  url?: string;
+  meta?: LinkMeta;
+  caption?: string;
 }
 
 export interface View {

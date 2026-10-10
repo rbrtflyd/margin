@@ -6,7 +6,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { Handle, Item } from '@/lib/types';
-import { FILLS, itemKind, SHAPE_SIZE, STICKY_SIZE } from '@/lib/items';
+import { itemKind, paintOf, SHAPE_SIZE, STICKY_SIZE } from '@/lib/items';
 import { Markdown } from '@/lib/markdown';
 
 const HANDLE_POS: Record<Handle, { left: string; top: string; cursor: string }> =
@@ -199,7 +199,7 @@ interface Props {
 export default function BoardItem(props: Props) {
   const it = props.item;
   const kind = itemKind(it);
-  const fill = FILLS[it.fill ?? (kind === 'sticky' ? 'amber' : 'white')];
+  const fill = paintOf(it);
   const off = props.offset;
   const handles = props.selected && !props.editing ? handlesFor(it) : [];
   const w =
@@ -254,7 +254,7 @@ export default function BoardItem(props: Props) {
         (kind === 'shape'
           ? ' flex items-center justify-center px-4 py-3 text-center'
           : '') +
-        (it.by === 'claude' && kind === 'text' ? ' text-base text-sky-800' : '') +
+        (fill.claude && kind === 'text' ? ' text-base text-sky-800' : '') +
         (props.selected ? ' z-1' : '') +
         (off ? ' opacity-85' : '') +
         (props.flashing

@@ -11,7 +11,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 0A | Save one board at a time | none | done |
 | 0B | Split `Canvas.tsx` into interaction modules | none | done |
 | 0C | Bounds layer and canvas bug fixes | 0B | done |
-| 0D | Item schema v2 | none | open |
+| 0D | Item schema v2 | none | done |
 | 0E | Geometry tests and undo coalescing | 0A | open |
 | 1A | Duplicate, nudge, copy and paste items | 0B | open |
 | 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | open |
@@ -107,13 +107,13 @@ Add every new field in one pass so later workstreams don't fight over `lib/types
 
 Touches: the four schema files listed under "Rules for every workstream".
 
-- [ ] Style fields hold palette names, not hex values, so Claude's items can always be forced to blue tokens: `stroke?: Fill | 'ink' | 'none'`, `strokeWidth?: 1 | 2 | 4`, `strokeStyle?: 'solid' | 'dashed' | 'dotted'`, `textColor?`, `fontSize?: 's' | 'm' | 'l' | 'xl'`, `align?: 'left' | 'center' | 'right'`. Allow `fill: 'none'` for outline-only shapes.
-- [ ] Add `locked?: boolean` and `groupId?: string`.
-- [ ] Connector fields: `arrowStart?`, `arrowEnd?` (`'none' | 'arrow' | 'triangle' | 'circle'`), `route` gains `'curved'`, an optional `bend?: number` for elbows, and `labelAt?: number` (0 to 1 along the path).
-- [ ] Anchors: allow `side: 'auto'`.
-- [ ] Reserve, but don't render yet: `kind` gains `'image' | 'link' | 'embed' | 'section'`, plus `assetId?`, `url?`, `meta?: { title?, description?, siteName?, thumb?, provider? }`, and `caption?`.
-- [ ] Bump export to `v: 2`, and make `importStore` migrate v1 files.
-- [ ] Make Claude's items render blue even when style fields are set.
+- [x] Style fields hold palette names, not hex values, so Claude's items can always be forced to blue tokens: `stroke?: Fill | 'ink' | 'none'`, `strokeWidth?: 1 | 2 | 4`, `strokeStyle?: 'solid' | 'dashed' | 'dotted'`, `textColor?`, `fontSize?: 's' | 'm' | 'l' | 'xl'`, `align?: 'left' | 'center' | 'right'`. Allow `fill: 'none'` for outline-only shapes.
+- [x] Add `locked?: boolean` and `groupId?: string`.
+- [x] Connector fields: `arrowStart?`, `arrowEnd?` (`'none' | 'arrow' | 'triangle' | 'circle'`), `route` gains `'curved'`, an optional `bend?: number` for elbows, and `labelAt?: number` (0 to 1 along the path).
+- [x] Anchors: allow `side: 'auto'`.
+- [x] Reserve, but don't render yet: `kind` gains `'image' | 'link' | 'embed' | 'section'`, plus `assetId?`, `url?`, `meta?: { title?, description?, siteName?, thumb?, provider? }`, and `caption?`.
+- [x] Bump export to `v: 2`, and make `importStore` migrate v1 files.
+- [x] Make Claude's items render blue even when style fields are set.
 
 Done when old boards and old export files load unchanged, and typecheck passes.
 

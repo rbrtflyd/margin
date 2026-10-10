@@ -334,7 +334,8 @@ export default function Margin({ user }: { user: User | null }) {
       start: draft.start,
       end: draft.end,
     });
-    if (item.fill && kind === 'sticky') setStickyFill(item.fill);
+    if (item.fill && item.fill !== 'none' && kind === 'sticky')
+      setStickyFill(item.fill);
     const startEdit = draft.edit === true || (draft.edit !== false && kind !== 'connector' && !item.text);
     if (startEdit) {
       editSnapshot.current = { id: item.id, items: b.items, isNew: true };
@@ -454,7 +455,8 @@ export default function Margin({ user }: { user: User | null }) {
       items.map((i) => {
         if (i.id !== id) return i;
         const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
-        if (next.fill && itemKind(next) === 'sticky') setStickyFill(next.fill);
+        if (next.fill && next.fill !== 'none' && itemKind(next) === 'sticky')
+          setStickyFill(next.fill);
         return next;
       }),
     );
