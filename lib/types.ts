@@ -29,7 +29,19 @@ export type ShapeKind =
   | 'star'
   | 'chevron'
   | 'speech';
-export type Fill = 'amber' | 'rose' | 'sky' | 'lime' | 'stone' | 'white';
+export type Fill =
+  | 'white'
+  | 'stone'
+  | 'amber'
+  | 'orange'
+  | 'yellow'
+  | 'lime'
+  | 'teal'
+  | 'sky'
+  | 'violet'
+  | 'fuchsia'
+  | 'rose'
+  | 'red';
 export type Stroke = Fill | 'ink' | 'none';
 export type StrokeWidth = 1 | 2 | 4;
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';

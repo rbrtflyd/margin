@@ -23,6 +23,7 @@ import {
   rememberSize,
   storedRect,
   unionRect,
+  type ItemStyle,
   type Rect,
 } from '@/lib/items';
 import {
@@ -74,6 +75,7 @@ interface Props {
   flash: string[];
   tool: Tool;
   stickyFill: Fill;
+  shapeStyle: ItemStyle;
   apiRef: RefObject<CanvasApi | null>;
   onSelect(ids: Set<string>): void;
   onMove(ids: string[], dx: number, dy: number): void;

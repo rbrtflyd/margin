@@ -9,12 +9,18 @@ const sideValidator = v.union(
 );
 
 const fillValidator = v.union(
-  v.literal('amber'),
-  v.literal('rose'),
-  v.literal('sky'),
-  v.literal('lime'),
-  v.literal('stone'),
   v.literal('white'),
+  v.literal('stone'),
+  v.literal('amber'),
+  v.literal('orange'),
+  v.literal('yellow'),
+  v.literal('lime'),
+  v.literal('teal'),
+  v.literal('sky'),
+  v.literal('violet'),
+  v.literal('fuchsia'),
+  v.literal('rose'),
+  v.literal('red'),
 );
 
 const anchorValidator = v.union(

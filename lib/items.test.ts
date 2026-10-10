@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   applyResize,
   boundsOf,
+  FILLS,
   forgetSize,
   mapBox,
+  paintOf,
   rememberSize,
   scaleItem,
   STICKY_SIZE,
+  strokeOf,
+  textInk,
 } from './items';
 import type { Item } from './types';
 
@@ -139,5 +143,41 @@ describe('boundsOf', () => {
       w: STICKY_SIZE,
       h: STICKY_SIZE,
     });
+  });
+});
+
+describe('paintOf', () => {
+  it('forces Claude items to sky even when fill is set', () => {
+    const p = paintOf(box({ id: 'c1', by: 'claude', fill: 'rose' }));
+    expect(p.bg).toBe(FILLS.sky.bg);
+    expect(p.claude).toBe(true);
+  });
+
+  it('treats fill none as a transparent fill', () => {
+    const p = paintOf(box({ id: 's1', kind: 'shape', fill: 'none' }));
+    expect(p.fillNone).toBe(true);
+    expect(p.bg).toBe('none');
+  });
+});
+
+describe('strokeOf', () => {
+  it('returns null when stroke is none', () => {
+    expect(strokeOf(box({ id: 's1', kind: 'shape', stroke: 'none' }))).toBeNull();
+  });
+
+  it('uses dashed marks when strokeStyle is dashed', () => {
+    const s = strokeOf(
+      box({ id: 's1', kind: 'shape', stroke: 'ink', strokeStyle: 'dashed' }),
+    );
+    expect(s?.dash).toBe('8 6');
+  });
+});
+
+describe('textInk', () => {
+  it('uses textColor when set, but Claude stays sky', () => {
+    expect(textInk(box({ id: 't1', textColor: 'rose' }))).toBe(FILLS.rose.ink);
+    expect(textInk(box({ id: 'c1', by: 'claude', textColor: 'rose' }))).toBe(
+      FILLS.sky.ink,
+    );
   });
 });

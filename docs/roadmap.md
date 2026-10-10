@@ -18,7 +18,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 1C | Stacking order, lock, group | 0B, 0D | done |
 | 1D | Align, distribute, smart guides, grid | 0C | done |
 | 2A | Shapes rendered as SVG, more shapes | 0D | done |
-| 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | open |
+| 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | done |
 | 2C | Text formatting and sticky sizing | 0D | open |
 | 3A | Connection dots and quick-create | 0B, 0C | open |
 | 3B | Arrowheads, curves, auto sides, elbow bends | 0D | open |
@@ -171,10 +171,10 @@ Diamonds and triangles are cut out with a CSS `clipPath` today, and a clip path 
 
 ### 2B. Style controls: fill, stroke, text color
 
-- [ ] One palette of about 10 to 12 colors in `lib/items.ts`, used for fill, stroke, and text.
-- [ ] In the selection bar: fill (including none), stroke color, stroke width, and stroke style. Each opens as a small popover so the bar stays short.
-- [ ] Remember the last style used for each kind, so new items use it.
-- [ ] Optional: copy style and paste style (Cmd+Alt+C and Cmd+Alt+V).
+- [x] One palette of about 10 to 12 colors in `lib/items.ts`, used for fill, stroke, and text.
+- [x] In the selection bar: fill (including none), stroke color, stroke width, and stroke style. Each opens as a small popover so the bar stays short.
+- [x] Remember the last style used for each kind, so new items use it.
+- [x] Optional: copy style and paste style (Cmd+Alt+C and Cmd+Alt+V).
 
 ### 2C. Text formatting and sticky sizing
 

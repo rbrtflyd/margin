@@ -78,14 +78,20 @@ export function placeShape(
   world: { x: number; y: number },
   shape: ShapeKind,
 ) {
-  ctx.propsRef.current.onCreate({
+  const p = ctx.propsRef.current;
+  const s = p.shapeStyle;
+  p.onCreate({
     kind: 'shape',
     shape,
     x: world.x - 70,
     y: world.y - 70,
     w: 140,
     h: 140,
-    fill: 'white',
+    fill: s.fill ?? 'white',
+    stroke: s.stroke,
+    strokeWidth: s.strokeWidth,
+    strokeStyle: s.strokeStyle,
+    textColor: s.textColor,
     text: '',
     edit: true,
   });

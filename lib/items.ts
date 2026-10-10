@@ -1,4 +1,13 @@
-import type { Fill, Handle, Item, ItemKind, ShapeKind } from './types';
+import type {
+  Fill,
+  Handle,
+  Item,
+  ItemKind,
+  ShapeKind,
+  Stroke,
+  StrokeStyle,
+  StrokeWidth,
+} from './types';
 
 export const STICKY_SIZE = 160;
 export const SHAPE_SIZE = 140;
@@ -8,25 +17,97 @@ export function itemKind(it: Pick<Item, 'kind'>): ItemKind {
   return it.kind ?? 'text';
 }
 
+export const INK = '#18181b';
+
 export const FILLS: Record<Fill, { bg: string; ink: string }> = {
-  amber: { bg: '#fde68a', ink: '#422006' },
-  rose: { bg: '#fecdd3', ink: '#4c0519' },
-  sky: { bg: '#bae6fd', ink: '#082f49' },
-  lime: { bg: '#d9f99d', ink: '#14532d' },
-  stone: { bg: '#e7e5e4', ink: '#1c1917' },
   white: { bg: '#ffffff', ink: '#18181b' },
+  stone: { bg: '#e7e5e4', ink: '#1c1917' },
+  amber: { bg: '#fde68a', ink: '#422006' },
+  orange: { bg: '#fed7aa', ink: '#7c2d12' },
+  yellow: { bg: '#fef08a', ink: '#713f12' },
+  lime: { bg: '#d9f99d', ink: '#14532d' },
+  teal: { bg: '#99f6e4', ink: '#134e4a' },
+  sky: { bg: '#bae6fd', ink: '#082f49' },
+  violet: { bg: '#ddd6fe', ink: '#4c1d95' },
+  fuchsia: { bg: '#f5d0fe', ink: '#701a75' },
+  rose: { bg: '#fecdd3', ink: '#4c0519' },
+  red: { bg: '#fecaca', ink: '#7f1d1d' },
+};
+
+export type Paint = {
+  bg: string;
+  ink: string;
+  claude: boolean;
+  fillNone: boolean;
 };
 
 /** Paint tokens for an item. Claude always uses sky, ignoring style fields. */
-export function paintOf(item: Item): { bg: string; ink: string; claude: boolean } {
-  if (item.by === 'claude') return { ...FILLS.sky, claude: true };
+export function paintOf(item: Item): Paint {
+  if (item.by === 'claude') {
+    return { ...FILLS.sky, claude: true, fillNone: false };
+  }
+  if (item.fill === 'none') {
+    return { bg: 'none', ink: INK, claude: false, fillNone: true };
+  }
   const name =
-    item.fill && item.fill !== 'none'
-      ? item.fill
-      : itemKind(item) === 'sticky'
-        ? 'amber'
-        : 'white';
-  return { ...FILLS[name], claude: false };
+    item.fill ?? (itemKind(item) === 'sticky' ? 'amber' : 'white');
+  return { ...FILLS[name], claude: false, fillNone: false };
+}
+
+export type StrokePaint = {
+  color: string;
+  width: number;
+  dash?: string;
+};
+
+export function strokeOf(item: Item): StrokePaint | null {
+  const paint = paintOf(item);
+  if (item.by === 'claude') {
+    return {
+      color: `color-mix(in oklab, ${FILLS.sky.ink} 28%, transparent)`,
+      width: 1.5,
+    };
+  }
+  if (item.stroke === 'none') return null;
+  const color = !item.stroke
+    ? `color-mix(in oklab, ${paint.ink} 28%, transparent)`
+    : item.stroke === 'ink'
+      ? INK
+      : FILLS[item.stroke].ink;
+  const width = item.strokeWidth ?? (item.stroke ? 1 : 1.5);
+  const dash =
+    item.strokeStyle === 'dashed'
+      ? '8 6'
+      : item.strokeStyle === 'dotted'
+        ? '1.5 4'
+        : undefined;
+  return { color, width, dash };
+}
+
+export function textInk(item: Item): string {
+  const paint = paintOf(item);
+  if (item.by === 'claude') return paint.ink;
+  if (item.textColor === 'ink') return INK;
+  if (item.textColor) return FILLS[item.textColor].ink;
+  return paint.ink;
+}
+
+export type ItemStyle = {
+  fill?: Fill | 'none';
+  stroke?: Stroke;
+  strokeWidth?: StrokeWidth;
+  strokeStyle?: StrokeStyle;
+  textColor?: Fill | 'ink';
+};
+
+export function styleOf(item: Item): ItemStyle {
+  const out: ItemStyle = {};
+  if (item.fill) out.fill = item.fill;
+  if (item.stroke) out.stroke = item.stroke;
+  if (item.strokeWidth) out.strokeWidth = item.strokeWidth;
+  if (item.strokeStyle) out.strokeStyle = item.strokeStyle;
+  if (item.textColor) out.textColor = item.textColor;
+  return out;
 }
 
 export function isBox(it: Pick<Item, 'kind'>): boolean {
@@ -36,11 +117,17 @@ export function isBox(it: Pick<Item, 'kind'>): boolean {
 
 export const FILL_ORDER: Fill[] = [
   'white',
-  'amber',
-  'rose',
-  'sky',
-  'lime',
   'stone',
+  'amber',
+  'orange',
+  'yellow',
+  'lime',
+  'teal',
+  'sky',
+  'violet',
+  'fuchsia',
+  'rose',
+  'red',
 ];
 
 export const SHAPES: { id: ShapeKind; label: string; shortcut?: string }[] = [

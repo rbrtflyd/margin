@@ -17,7 +17,15 @@ import type {
   View,
 } from '@/lib/types';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
-import { compactItem, itemKind, scaleItem, type Rect } from '@/lib/items';
+import {
+  compactItem,
+  isBox,
+  itemKind,
+  scaleItem,
+  styleOf,
+  type ItemStyle,
+  type Rect,
+} from '@/lib/items';
 import { detachAnchor, nodeRects } from '@/lib/connectors';
 import { nextHistory } from '@/lib/history';
 import {
@@ -70,6 +78,8 @@ export default function Margin({ user }: { user: User | null }) {
   const [snapGrid, setSnapGrid] = useState(false);
   const [tool, setTool] = useState<Tool>({ type: 'select' });
   const [stickyFill, setStickyFill] = useState<Fill>('amber');
+  const [shapeStyle, setShapeStyle] = useState<ItemStyle>({ fill: 'white' });
+  const copiedStyle = useRef<ItemStyle | null>(null);
   const canvasApi = useRef<CanvasApi | null>(null);
   const histories = useRef(new Map<string, History>());
   const editSnapshot = useRef<{
@@ -363,12 +373,17 @@ export default function Margin({ user }: { user: User | null }) {
       h: draft.h,
       shape: draft.shape,
       fill: draft.fill,
+      stroke: draft.stroke,
+      strokeWidth: draft.strokeWidth,
+      strokeStyle: draft.strokeStyle,
+      textColor: draft.textColor,
       route: draft.route,
       start: draft.start,
       end: draft.end,
     });
     if (item.fill && item.fill !== 'none' && kind === 'sticky')
       setStickyFill(item.fill);
+    if (kind === 'shape') setShapeStyle((s) => ({ ...s, ...styleOf(item) }));
     const startEdit = draft.edit === true || (draft.edit !== false && kind !== 'connector' && !item.text);
     if (startEdit) {
       editSnapshot.current = { id: item.id, items: b.items, isNew: true };
@@ -583,6 +598,8 @@ export default function Margin({ user }: { user: User | null }) {
         const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
         if (next.fill && next.fill !== 'none' && itemKind(next) === 'sticky')
           setStickyFill(next.fill);
+        if (itemKind(next) === 'shape')
+          setShapeStyle((s) => ({ ...s, ...styleOf(next) }));
         return next;
       }),
     );
@@ -597,15 +614,46 @@ export default function Margin({ user }: { user: User | null }) {
           if (!sel.has(i.id)) return i;
           const kind = itemKind(i);
           if (patch.fill && kind !== 'sticky' && kind !== 'shape') return i;
+          if (patch.fill === 'none' && kind === 'sticky') return i;
+          if (
+            (patch.stroke !== undefined ||
+              patch.strokeWidth !== undefined ||
+              patch.strokeStyle !== undefined) &&
+            kind !== 'shape'
+          )
+            return i;
+          if (
+            patch.textColor &&
+            kind !== 'text' &&
+            kind !== 'sticky' &&
+            kind !== 'shape'
+          )
+            return i;
           if (patch.route && kind !== 'connector') return i;
           const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
           if (next.fill && next.fill !== 'none' && kind === 'sticky')
             setStickyFill(next.fill);
+          if (kind === 'shape')
+            setShapeStyle((s) => ({ ...s, ...styleOf(next) }));
           return next;
         }),
       true,
       coalesceKey,
     );
+  };
+
+  const copyStyleSelected = () => {
+    const b = currentBoard();
+    const sel = selectedRef.current;
+    if (!b || !sel.size) return;
+    const first = b.items.find((i) => sel.has(i.id) && isBox(i));
+    if (!first) return;
+    copiedStyle.current = styleOf(first);
+  };
+
+  const pasteStyleSelected = () => {
+    if (!copiedStyle.current) return;
+    patchSelected(copiedStyle.current, 'style');
   };
 
   const arrangeSelected = (op: ArrangeOp) => {
@@ -790,6 +838,8 @@ export default function Margin({ user }: { user: User | null }) {
     toggleLockSelected,
     groupSelected,
     ungroupSelected,
+    copyStyleSelected,
+    pasteStyleSelected,
   });
   actions.current = {
     deleteSelected,
@@ -806,6 +856,8 @@ export default function Margin({ user }: { user: User | null }) {
     toggleLockSelected,
     groupSelected,
     ungroupSelected,
+    copyStyleSelected,
+    pasteStyleSelected,
   };
   const askOpenRef = useRef(askOpen);
   askOpenRef.current = askOpen;
@@ -874,6 +926,16 @@ export default function Margin({ user }: { user: User | null }) {
         e.preventDefault();
         if (e.shiftKey) a.ungroupSelected();
         else a.groupSelected();
+        return;
+      }
+      if (mod && e.altKey && key === 'c') {
+        e.preventDefault();
+        a.copyStyleSelected();
+        return;
+      }
+      if (mod && e.altKey && key === 'v') {
+        e.preventDefault();
+        a.pasteStyleSelected();
         return;
       }
       if (mod || e.altKey) return;
@@ -1002,6 +1064,7 @@ export default function Margin({ user }: { user: User | null }) {
         apiRef={canvasApi}
         tool={tool}
         stickyFill={stickyFill}
+        shapeStyle={shapeStyle}
         onSelect={setSelected}
         onMove={moveItems}
         onDuplicateMove={duplicateItems}

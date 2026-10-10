@@ -6,7 +6,14 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { Handle, Item, ShapeKind } from '@/lib/types';
-import { itemKind, paintOf, SHAPE_SIZE, STICKY_SIZE } from '@/lib/items';
+import {
+  itemKind,
+  paintOf,
+  SHAPE_SIZE,
+  STICKY_SIZE,
+  strokeOf,
+  textInk,
+} from '@/lib/items';
 import { Markdown } from '@/lib/markdown';
 import { shapePad, shapePaths } from '@/lib/shapes';
 
@@ -52,6 +59,7 @@ export function ShapeSvg({
   fill,
   stroke,
   strokeWidth = 1.5,
+  strokeDasharray,
   className = '',
 }: {
   kind: ShapeKind | undefined;
@@ -60,6 +68,7 @@ export function ShapeSvg({
   fill: string;
   stroke: string;
   strokeWidth?: number;
+  strokeDasharray?: string;
   className?: string;
 }) {
   const paths = shapePaths(kind, w, h);
@@ -77,7 +86,9 @@ export function ShapeSvg({
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
           strokeLinejoin="round"
+          strokeLinecap="round"
         />
       ))}
     </svg>
@@ -249,6 +260,8 @@ export default function BoardItem(props: Props) {
   const it = props.item;
   const kind = itemKind(it);
   const fill = paintOf(it);
+  const stroke = strokeOf(it);
+  const ink = textInk(it);
   const off = props.offset;
   const handles =
     props.selected &&
@@ -314,7 +327,10 @@ export default function BoardItem(props: Props) {
         height: h,
         minHeight: minH,
         maxWidth: kind === 'text' && it.w ? 'none' : undefined,
-        color: kind === 'sticky' || kind === 'shape' ? fill.ink : undefined,
+        color:
+          kind === 'sticky' || kind === 'shape' || kind === 'text'
+            ? ink
+            : undefined,
         background:
           kind === 'sticky' || (kind === 'text' && props.editing)
             ? kind === 'sticky'
@@ -329,7 +345,9 @@ export default function BoardItem(props: Props) {
           w={shapeW}
           h={shapeH}
           fill={fill.bg}
-          stroke={'color-mix(in oklab, ' + fill.ink + ' 28%, transparent)'}
+          stroke={stroke ? stroke.color : 'none'}
+          strokeWidth={stroke?.width}
+          strokeDasharray={stroke?.dash}
           className="pointer-events-none absolute inset-0"
         />
       )}

@@ -1,8 +1,14 @@
 'use client';
 
 import type { ArrangeOp } from '@/lib/align';
-import type { Fill, Item, Route } from '@/lib/types';
-import { FILL_ORDER, FILLS, isBox, itemKind } from '@/lib/items';
+import type { Fill, Item, Route, Stroke, StrokeStyle, StrokeWidth } from '@/lib/types';
+import { FILL_ORDER, FILLS, INK, isBox, itemKind } from '@/lib/items';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Props {
   items: Item[];
@@ -13,34 +19,90 @@ interface Props {
   onArrange(op: ArrangeOp): void;
 }
 
-function effectiveFill(it: Item): Fill {
-  if (it.fill && it.fill !== 'none') return it.fill;
+function effectiveFill(it: Item): Fill | 'none' {
+  if (it.fill) return it.fill;
   return itemKind(it) === 'sticky' ? 'amber' : 'white';
 }
 
-function sharedFill(items: Item[]): Fill | null {
+function shared<T>(items: Item[], pick: (it: Item) => T): T | null {
   if (!items.length) return null;
-  const first = effectiveFill(items[0]);
-  return items.every((i) => effectiveFill(i) === first) ? first : null;
+  const first = pick(items[0]);
+  return items.every((i) => pick(i) === first) ? first : null;
 }
 
-function sharedRoute(items: Item[]): Route | null {
-  if (!items.length) return null;
-  const first = items[0].route ?? 'straight';
-  return items.every((i) => (i.route ?? 'straight') === first) ? first : null;
+function Chip({
+  name,
+  pressed,
+}: {
+  name: Fill | 'none' | 'ink' | 'mixed';
+  pressed?: boolean;
+}) {
+  const bg =
+    name === 'none' || name === 'mixed'
+      ? 'transparent'
+      : name === 'ink'
+        ? INK
+        : FILLS[name].bg;
+  return (
+    <span
+      className={
+        'relative block size-6 overflow-hidden rounded-md border border-stone-200 ' +
+        (pressed ? 'ring-2 ring-sky-700' : '')
+      }
+      style={{ background: bg }}>
+      {name === 'none' && (
+        <span
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(to top right, transparent calc(50% - 0.6px), #a8a29e 50%, transparent calc(50% + 0.6px))',
+          }}
+        />
+      )}
+      {name === 'mixed' && (
+        <span className="absolute inset-0 bg-[repeating-linear-gradient(135deg,#e7e5e4_0_4px,#fff_4px_8px)]" />
+      )}
+    </span>
+  );
 }
+
+const STROKE_WIDTHS: StrokeWidth[] = [1, 2, 4];
+const STROKE_STYLES: { id: StrokeStyle; label: string }[] = [
+  { id: 'solid', label: 'Solid' },
+  { id: 'dashed', label: 'Dashed' },
+  { id: 'dotted', label: 'Dotted' },
+];
 
 export default function SelectionBar(props: Props) {
   const fillables = props.items.filter((i) => {
     const k = itemKind(i);
     return k === 'sticky' || k === 'shape';
   });
+  const shapes = props.items.filter((i) => itemKind(i) === 'shape');
+  const textables = props.items.filter((i) => {
+    const k = itemKind(i);
+    return k === 'text' || k === 'sticky' || k === 'shape';
+  });
   const routes = props.items.filter((i) => itemKind(i) === 'connector');
-  const fill = sharedFill(fillables);
-  const route = sharedRoute(routes);
+  const fill = shared(fillables, effectiveFill);
+  const stroke = shared(shapes, (i) => i.stroke ?? null);
+  const strokeWidth = shared(shapes, (i) => i.strokeWidth ?? null);
+  const strokeStyle = shared(shapes, (i) => i.strokeStyle ?? 'solid');
+  const textColor = shared(textables, (i) => i.textColor ?? null);
+  const route = shared(routes, (i) => (i.route ?? 'straight') as Route);
   const allLocked =
     props.items.length > 0 && props.items.every((i) => i.locked);
-  if (!fillables.length && !routes.length && !props.items.length) return null;
+  const showNone = shapes.length > 0;
+  if (
+    !fillables.length &&
+    !routes.length &&
+    !textables.length &&
+    !props.items.length
+  )
+    return null;
+
+  const pill =
+    'rounded-lg border-0 bg-transparent px-2 py-1 text-[12.5px] hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100';
 
   return (
     <div
@@ -48,19 +110,178 @@ export default function SelectionBar(props: Props) {
       style={{ left: props.left, top: props.top }}
       onPointerDown={(e) => e.stopPropagation()}>
       <div className="pointer-events-auto flex items-center gap-0.5 rounded-2xl border border-stone-100 bg-white/80 p-1 shadow-sm backdrop-blur-md">
-        {fillables.length > 0 &&
-          FILL_ORDER.map((name) => (
-            <button
-              key={name}
-              type="button"
-              title={name}
-              aria-label={name}
-              aria-pressed={fill === name}
-              className="size-6 rounded-md border-0 ring-offset-1 hover:ring-1 hover:ring-zinc-400 aria-pressed:ring-2 aria-pressed:ring-sky-700"
-              style={{ background: FILLS[name].bg }}
-              onClick={() => props.onPatchAll({ fill: name }, 'fill')}
-            />
-          ))}
+        {fillables.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="flex items-center gap-1 rounded-lg border-0 bg-transparent px-1.5 py-1 hover:bg-zinc-900/10"
+              aria-label="Fill"
+              title="Fill">
+              <Chip name={fill ?? 'mixed'} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="top"
+              className="grid w-[168px] min-w-0 grid-cols-4 gap-1 p-1.5">
+              {FILL_ORDER.map((name) => (
+                <DropdownMenuItem
+                  key={name}
+                  className="flex size-8 items-center justify-center p-0"
+                  aria-label={name}
+                  onClick={() => props.onPatchAll({ fill: name }, 'fill')}>
+                  <Chip
+                    name={name}
+                    pressed={fill === name}
+                  />
+                </DropdownMenuItem>
+              ))}
+              {showNone && (
+                <DropdownMenuItem
+                  className="flex size-8 items-center justify-center p-0"
+                  aria-label="none"
+                  onClick={() => props.onPatchAll({ fill: 'none' }, 'fill')}>
+                  <Chip
+                    name="none"
+                    pressed={fill === 'none'}
+                  />
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {shapes.length > 0 && (
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="flex items-center gap-1 rounded-lg border-0 bg-transparent px-1.5 py-1 text-[12.5px] hover:bg-zinc-900/10"
+                aria-label="Stroke color"
+                title="Stroke color">
+                Stroke
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                className="grid w-[168px] min-w-0 grid-cols-4 gap-1 p-1.5">
+                {FILL_ORDER.map((name) => (
+                  <DropdownMenuItem
+                    key={name}
+                    className="flex size-8 items-center justify-center p-0"
+                    aria-label={name}
+                    onClick={() =>
+                      props.onPatchAll({ stroke: name as Stroke }, 'stroke')
+                    }>
+                    <Chip
+                      name={name}
+                      pressed={stroke === name}
+                    />
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuItem
+                  className="flex size-8 items-center justify-center p-0"
+                  aria-label="ink"
+                  onClick={() => props.onPatchAll({ stroke: 'ink' }, 'stroke')}>
+                  <Chip
+                    name="ink"
+                    pressed={stroke === 'ink'}
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex size-8 items-center justify-center p-0"
+                  aria-label="none"
+                  onClick={() => props.onPatchAll({ stroke: 'none' }, 'stroke')}>
+                  <Chip
+                    name="none"
+                    pressed={stroke === 'none'}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={pill}
+                aria-label="Stroke width"
+                title="Stroke width">
+                {strokeWidth ?? 'W'}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                className="min-w-24">
+                {STROKE_WIDTHS.map((n) => (
+                  <DropdownMenuItem
+                    key={n}
+                    aria-label={String(n)}
+                    onClick={() =>
+                      props.onPatchAll({ strokeWidth: n }, 'stroke')
+                    }>
+                    {n}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={pill}
+                aria-label="Stroke style"
+                title="Stroke style">
+                {strokeStyle === 'dashed'
+                  ? 'Dash'
+                  : strokeStyle === 'dotted'
+                    ? 'Dot'
+                    : 'Line'}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                className="min-w-28">
+                {STROKE_STYLES.map((s) => (
+                  <DropdownMenuItem
+                    key={s.id}
+                    onClick={() =>
+                      props.onPatchAll({ strokeStyle: s.id }, 'stroke')
+                    }>
+                    {s.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
+        {textables.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="flex items-center gap-1 rounded-lg border-0 bg-transparent px-1.5 py-1 hover:bg-zinc-900/10"
+              aria-label="Text color"
+              title="Text color">
+              <Chip name={textColor ?? 'mixed'} />
+              <span className="text-[12.5px]">A</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="top"
+              className="grid w-[168px] min-w-0 grid-cols-4 gap-1 p-1.5">
+              {FILL_ORDER.map((name) => (
+                <DropdownMenuItem
+                  key={name}
+                  className="flex size-8 items-center justify-center p-0"
+                  aria-label={name}
+                  onClick={() =>
+                    props.onPatchAll({ textColor: name }, 'textColor')
+                  }>
+                  <Chip
+                    name={name}
+                    pressed={textColor === name}
+                  />
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                className="flex size-8 items-center justify-center p-0"
+                aria-label="ink"
+                onClick={() =>
+                  props.onPatchAll({ textColor: 'ink' }, 'textColor')
+                }>
+                <Chip
+                  name="ink"
+                  pressed={textColor === 'ink'}
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {fillables.length > 0 && routes.length > 0 && (
           <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden="true" />
         )}
@@ -68,14 +289,14 @@ export default function SelectionBar(props: Props) {
           <>
             <button
               type="button"
-              className="rounded-lg border-0 bg-transparent px-2 py-1 text-[12.5px] hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100"
+              className={pill}
               aria-pressed={route === 'straight'}
               onClick={() => props.onPatchAll({ route: 'straight' }, 'route')}>
               Straight
             </button>
             <button
               type="button"
-              className="rounded-lg border-0 bg-transparent px-2 py-1 text-[12.5px] hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100"
+              className={pill}
               aria-pressed={route === 'elbow'}
               onClick={() => props.onPatchAll({ route: 'elbow' }, 'route')}>
               Elbow
@@ -84,7 +305,9 @@ export default function SelectionBar(props: Props) {
         )}
         {props.items.filter(isBox).length >= 2 && (
           <>
-            {(fillables.length > 0 || routes.length > 0) && (
+            {(fillables.length > 0 ||
+              routes.length > 0 ||
+              textables.length > 0) && (
               <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden="true" />
             )}
             {(
@@ -135,12 +358,13 @@ export default function SelectionBar(props: Props) {
         )}
         {(fillables.length > 0 ||
           routes.length > 0 ||
+          textables.length > 0 ||
           props.items.filter(isBox).length >= 2) && (
           <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden="true" />
         )}
         <button
           type="button"
-          className="rounded-lg border-0 bg-transparent px-2 py-1 text-[12.5px] hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100"
+          className={pill}
           aria-pressed={allLocked}
           aria-label={allLocked ? 'Unlock' : 'Lock'}
           onClick={props.onToggleLock}>

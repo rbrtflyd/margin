@@ -8,10 +8,13 @@ import type {
   ItemKind,
   Route,
   ShapeKind,
+  Stroke,
+  StrokeStyle,
+  StrokeWidth,
   Tool,
   View,
 } from '@/lib/types';
-import type { Rect } from '@/lib/items';
+import type { ItemStyle, Rect } from '@/lib/items';
 import type { ArrangeOp, Guides } from '@/lib/align';
 import type { Pt } from '@/lib/connectors';
 
@@ -24,7 +27,11 @@ export type CreateDraft = {
   text?: string;
   by?: Author;
   shape?: ShapeKind;
-  fill?: Fill;
+  fill?: Fill | 'none';
+  stroke?: Stroke;
+  strokeWidth?: StrokeWidth;
+  strokeStyle?: StrokeStyle;
+  textColor?: Fill | 'ink';
   route?: Route;
   start?: Anchor;
   end?: Anchor;
@@ -103,6 +110,7 @@ export type CanvasProps = {
   selected: Set<string>;
   tool: Tool;
   stickyFill: Fill;
+  shapeStyle: ItemStyle;
   onSelect(ids: Set<string>): void;
   onMove(ids: string[], dx: number, dy: number): void;
   onDuplicateMove(ids: string[], dx: number, dy: number): void;

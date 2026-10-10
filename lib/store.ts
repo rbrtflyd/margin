@@ -54,7 +54,20 @@ const SHAPES: ShapeKind[] = [
   'chevron',
   'speech',
 ];
-const FILLS: Fill[] = ['amber', 'rose', 'sky', 'lime', 'stone', 'white'];
+const FILLS: Fill[] = [
+  'white',
+  'stone',
+  'amber',
+  'orange',
+  'yellow',
+  'lime',
+  'teal',
+  'sky',
+  'violet',
+  'fuchsia',
+  'rose',
+  'red',
+];
 const FILL_OR_NONE = [...FILLS, 'none'] as const;
 const STROKES: Stroke[] = [...FILLS, 'ink', 'none'];
 const TEXT_COLORS = [...FILLS, 'ink'] as const;
