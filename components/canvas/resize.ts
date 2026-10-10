@@ -3,7 +3,7 @@ import { GUIDE_PX, snapResizeRect } from '@/lib/align';
 import {
   applyResize,
   boundsOf,
-  isBox,
+  hasRect,
   itemKind,
   storedRect,
   unionRect,
@@ -21,7 +21,7 @@ function origBox(
   const boxes: Rect[] = [];
   for (const id of ids) {
     const it = items.find((i) => i.id === id);
-    if (!it || !isBox(it)) continue;
+    if (!it || !hasRect(it)) continue;
     boxes.push(rects.get(id) ?? storedRect(it));
   }
   return unionRect(boxes);
@@ -87,7 +87,7 @@ function liveBox(
   }
   const idSet = new Set(d.ids);
   const others = ctx.propsRef.current.items
-    .filter((i) => !idSet.has(i.id) && isBox(i))
+    .filter((i) => !idSet.has(i.id) && hasRect(i))
     .map(boundsOf);
   const snapped = snapResizeRect(
     box,

@@ -1,5 +1,5 @@
 import type { Item } from './types';
-import { itemKind } from './items';
+import { boundsOf, isSection, itemKind } from './items';
 
 export type RestackDir = 'forward' | 'back' | 'front' | 'backmost';
 
@@ -33,22 +33,47 @@ function restackLayer(layer: Item[], ids: Set<string>, dir: RestackDir): Item[] 
   return arr;
 }
 
-/** Restack selected items within their layer (connectors vs nodes). */
+/** Restack selected items within their layer (sections, connectors, nodes). */
 export function restack(items: Item[], ids: Iterable<string>, dir: RestackDir): Item[] {
   const set = ids instanceof Set ? ids : new Set(ids);
+  const sections = restackLayer(items.filter(isSection), set, dir);
   const nodes = restackLayer(
-    items.filter((i) => !isConn(i)),
+    items.filter((i) => !isConn(i) && !isSection(i)),
     set,
     dir,
   );
-  const conns = restackLayer(
-    items.filter(isConn),
-    set,
-    dir,
-  );
+  const conns = restackLayer(items.filter(isConn), set, dir);
+  let s = 0;
   let n = 0;
   let c = 0;
-  return items.map((i) => (isConn(i) ? conns[c++] : nodes[n++]));
+  return items.map((i) => {
+    if (isSection(i)) return sections[s++];
+    if (isConn(i)) return conns[c++];
+    return nodes[n++];
+  });
+}
+
+function centerIn(it: Item, r: { x: number; y: number; w: number; h: number }) {
+  const b = boundsOf(it);
+  const cx = b.x + b.w / 2;
+  const cy = b.y + b.h / 2;
+  return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
+}
+
+/** Add items whose centers sit inside a selected section. */
+export function expandContained(items: Item[], ids: Iterable<string>): Set<string> {
+  const seed = ids instanceof Set ? ids : new Set(ids);
+  const sections = items.filter((i) => seed.has(i.id) && isSection(i));
+  if (!sections.length) return seed;
+  const out = new Set(seed);
+  for (const sec of sections) {
+    const r = boundsOf(sec);
+    for (const it of items) {
+      if (out.has(it.id) || isConn(it)) continue;
+      if (centerIn(it, r)) out.add(it.id);
+    }
+  }
+  return out;
 }
 
 /** Expand ids to whole groups when a member is included. */

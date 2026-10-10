@@ -17,6 +17,8 @@ export const SHAPE_SIZE = 140;
 export const IMAGE_SIZE = 320;
 export const LINK_W = 280;
 export const LINK_H = 160;
+export const SECTION_W = 640;
+export const SECTION_H = 400;
 export const MIN_SIZE = 40;
 export const FONT_PX: Record<FontSize, number> = {
   s: 12,
@@ -70,8 +72,9 @@ export function paintOf(item: Item): Paint {
   if (item.fill === 'none') {
     return { bg: 'none', ink: INK, claude: false, fillNone: true };
   }
+  const k = itemKind(item);
   const name =
-    item.fill ?? (itemKind(item) === 'sticky' ? 'amber' : 'white');
+    item.fill ?? (k === 'sticky' ? 'amber' : k === 'section' ? 'stone' : 'white');
   return { ...FILLS[name], claude: false, fillNone: false };
 }
 
@@ -147,6 +150,15 @@ export function isBox(it: Pick<Item, 'kind'>): boolean {
   );
 }
 
+export function isSection(it: Pick<Item, 'kind'>): boolean {
+  return itemKind(it) === 'section';
+}
+
+/** Boxes and sections: anything with a world rect that can move, resize, and marquee. */
+export function hasRect(it: Pick<Item, 'kind'>): boolean {
+  return isBox(it) || isSection(it);
+}
+
 export const FILL_ORDER: Fill[] = [
   'white',
   'stone',
@@ -211,6 +223,14 @@ export function storedRect(it: Item): Rect {
       y: it.y,
       w: it.w ?? LINK_W,
       h: it.h ?? LINK_H,
+    };
+  }
+  if (kind === 'section') {
+    return {
+      x: it.x,
+      y: it.y,
+      w: it.w ?? SECTION_W,
+      h: it.h ?? SECTION_H,
     };
   }
   return { x: it.x, y: it.y, w: it.w ?? 160, h: it.h ?? 28 };

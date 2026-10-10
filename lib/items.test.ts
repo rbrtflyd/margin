@@ -6,6 +6,11 @@ import {
   fontPx,
   forgetSize,
   isBox,
+  isSection,
+  hasRect,
+  SECTION_W,
+  SECTION_H,
+  storedRect,
   mapBox,
   paintOf,
   rememberSize,
@@ -140,6 +145,22 @@ describe('isBox', () => {
     expect(isBox(box({ id: 'l1', kind: 'link' }))).toBe(true);
     expect(isBox(box({ id: 'e1', kind: 'embed' }))).toBe(true);
     expect(isBox(box({ id: 'c1', kind: 'connector' }))).toBe(false);
+    expect(isBox(box({ id: 'n1', kind: 'section' }))).toBe(false);
+  });
+});
+
+describe('isSection / hasRect', () => {
+  it('treats sections as rects, not boxes', () => {
+    const sec = box({ id: 'n1', kind: 'section' });
+    expect(isSection(sec)).toBe(true);
+    expect(hasRect(sec)).toBe(true);
+    expect(hasRect(box({ id: 'c1', kind: 'connector' }))).toBe(false);
+    expect(storedRect(sec)).toEqual({
+      x: 10,
+      y: 20,
+      w: SECTION_W,
+      h: SECTION_H,
+    });
   });
 });
 

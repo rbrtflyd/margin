@@ -1,6 +1,6 @@
 import { GUIDE_PX, snapDragDelta } from '@/lib/align';
-import { boundsOf, isBox, itemKind, unionRect } from '@/lib/items';
-import { expandGroups, unlockedIds } from '@/lib/stack';
+import { boundsOf, hasRect, itemKind, unionRect } from '@/lib/items';
+import { expandContained, expandGroups, unlockedIds } from '@/lib/stack';
 import type { Drag, InteractionCtx } from './types';
 
 function snapMove(
@@ -14,11 +14,11 @@ function snapMove(
   const items = ctx.propsRef.current.items;
   const idSet = new Set(ids);
   const orig = unionRect(
-    items.filter((i) => idSet.has(i.id) && isBox(i)).map(boundsOf),
+    items.filter((i) => idSet.has(i.id) && hasRect(i)).map(boundsOf),
   );
   if (!orig) return { dx, dy, guides: null };
   const others = items
-    .filter((i) => !idSet.has(i.id) && isBox(i))
+    .filter((i) => !idSet.has(i.id) && hasRect(i))
     .map(boundsOf);
   return snapDragDelta(
     orig,
@@ -49,7 +49,10 @@ export function startMove(
     }
     p.onSelect(next);
     if (wasSelected) return null;
-    const ids = unlockedIds(items, next);
+    const ids = unlockedIds(
+      items,
+      e.altKey ? next : expandContained(items, next),
+    );
     return {
       kind: 'move',
       sx: e.clientX,
@@ -64,7 +67,10 @@ export function startMove(
   }
   const raw = wasSelected ? Array.from(p.selected) : Array.from(group);
   if (!wasSelected) p.onSelect(new Set(raw));
-  const ids = unlockedIds(items, raw);
+  const ids = unlockedIds(
+    items,
+    e.altKey ? raw : expandContained(items, raw),
+  );
   return {
     kind: 'move',
     sx: e.clientX,

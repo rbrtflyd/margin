@@ -17,6 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -56,10 +57,16 @@ interface Props {
   tool: Tool;
   onTool(tool: Tool): void;
   onAsk(): void;
+  onZoomBy(factor: number): void;
+  onZoom100(): void;
   onFit(): void;
+  onFrameSelection(): void;
+  sections: { id: string; name: string }[];
+  onJumpSection(id: string): void;
   snapGrid: boolean;
   onSnapGrid(on: boolean): void;
   onPickImages(files: File[]): void;
+  onSeed?: () => void;
 }
 
 export default function CanvasToolbar(props: Props) {
@@ -203,6 +210,31 @@ export default function CanvasToolbar(props: Props) {
       </button>
       <button
         type="button"
+        className={btn}
+        aria-pressed={props.tool.type === 'section'}
+        title="Section"
+        onClick={() => props.onTool({ type: 'section' })}>
+        <svg
+          width={16}
+          height={16}
+          viewBox="0 0 16 16"
+          aria-hidden
+          className="overflow-visible">
+          <rect
+            x={1.5}
+            y={3}
+            width={13}
+            height={10}
+            rx={1.5}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.4}
+          />
+        </svg>
+        <span className="max-sm:hidden">Section</span>
+      </button>
+      <button
+        type="button"
         className={
           btn +
           ' aria-pressed:bg-zinc-900 aria-pressed:text-stone-100 aria-pressed:[&_kbd]:text-current aria-pressed:[&_kbd]:opacity-70'
@@ -222,13 +254,57 @@ export default function CanvasToolbar(props: Props) {
         onClick={() => props.onSnapGrid(!props.snapGrid)}>
         Grid
       </button>
-      <button
-        type="button"
-        className="inline-flex min-w-[54px] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 font-mono text-xs font-medium whitespace-nowrap text-zinc-500 tabular-nums hover:bg-zinc-900/10 max-sm:px-2"
-        title="Zoom to fit (Shift+1)"
-        onClick={props.onFit}>
-        {Math.round(props.zoom * 100)}%
-      </button>
+      {props.onSeed && (
+        <button
+          type="button"
+          className={btn}
+          title="Add 2,000 items"
+          onClick={props.onSeed}>
+          2k
+        </button>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className="inline-flex min-w-[54px] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 font-mono text-xs font-medium whitespace-nowrap text-zinc-500 tabular-nums hover:bg-zinc-900/10 aria-expanded:bg-zinc-900 aria-expanded:text-stone-100 max-sm:px-2"
+          title="Zoom">
+          {Math.round(props.zoom * 100)}%
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          side="top"
+          className="min-w-44">
+          <DropdownMenuItem onClick={() => props.onZoomBy(1.25)}>
+            Zoom in
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => props.onZoomBy(1 / 1.25)}>
+            Zoom out
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={props.onZoom100}>
+            Zoom to 100%
+            <DropdownMenuShortcut>⇧0</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={props.onFit}>
+            Zoom to fit
+            <DropdownMenuShortcut>⇧1</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={props.onFrameSelection}>
+            Zoom to selection
+            <DropdownMenuShortcut>⇧2</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          {props.sections.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              {props.sections.map((s) => (
+                <DropdownMenuItem
+                  key={s.id}
+                  className="max-w-56 truncate"
+                  onClick={() => props.onJumpSection(s.id)}>
+                  {s.name}
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </Island>
   );
 }

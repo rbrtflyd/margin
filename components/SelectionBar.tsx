@@ -90,7 +90,7 @@ const STROKE_STYLES: { id: StrokeStyle; label: string }[] = [
 export default function SelectionBar(props: Props) {
   const fillables = props.items.filter((i) => {
     const k = itemKind(i);
-    return k === 'sticky' || k === 'shape';
+    return k === 'sticky' || k === 'shape' || k === 'section';
   });
   const shapes = props.items.filter((i) => itemKind(i) === 'shape');
   const textables = props.items.filter((i) => {

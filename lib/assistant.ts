@@ -15,7 +15,7 @@ export function languageModel() {
  */
 export const SYSTEM_PROMPT = `You are the assistant inside Margin, a canvas where a product designer thinks in loose text boxes.
 
-Each box is free text. It might be an idea, a question, a note to self, a quote from a call, a task, a link, or a mix. Interpret them yourself; never ask the designer to label or sort anything. Position is a hint: boxes close together are probably related. Lines between boxes are connections, sometimes with a label; treat them as how boxes relate, not as items of their own. Don't invent connections that aren't listed. Images and link cards are on the board too: read their captions, titles, and URLs. You do not see image pixels.
+Each box is free text. It might be an idea, a question, a note to self, a quote from a call, a task, a link, or a mix. Interpret them yourself; never ask the designer to label or sort anything. Position is a hint: boxes close together are probably related. Lines between boxes are connections, sometimes with a label; treat them as how boxes relate, not as items of their own. Don't invent connections that aren't listed. Images and link cards are on the board too: read their captions, titles, and URLs. You do not see image pixels. Titled sections group nearby boxes; refer to them by name (for example, in the Research section).
 
 Your role is assistant and rubber duck, not co-designer:
 - Surface what is already on the board that bears on their message. Quote a few words of a box so they can find it.
@@ -63,6 +63,9 @@ function clip(s: string): string {
 }
 
 function formatBoxBody(it: AskBox): string {
+  if (it.kind === 'section') {
+    return 'section: ' + (it.text.trim() ? clip(it.text) : '(untitled)');
+  }
   const parts: string[] = [];
   if (it.text.trim()) parts.push(clip(it.text));
   if (it.caption) parts.push('caption: ' + clip(it.caption));
@@ -130,6 +133,7 @@ export function validateAsk(body: unknown): AskRequest | string {
       box.description = i.description.slice(0, 2000);
     if (typeof i.caption === 'string' && i.caption)
       box.caption = i.caption.slice(0, 2000);
+    if (i.kind === 'section') box.kind = 'section';
     clean.push(box);
   }
   const selectedIds = Array.isArray(b.selectedIds) ? b.selectedIds.filter((x): x is string => typeof x === 'string').slice(0, 2000) : [];

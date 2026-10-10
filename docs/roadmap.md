@@ -29,9 +29,9 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 4C | Link cards and `/api/unfurl` | 0D | done |
 | 4D | Embeds | 4C | done |
 | 4E | Assistant reads images and links | 4B, 4C | done |
-| 5A | Sections | 0C, 0D | open |
-| 5B | Zoom menu and find | 0C | open |
-| 5C | Viewport culling and performance | 0C | open |
+| 5A | Sections | 0C, 0D | done |
+| 5B | Zoom menu and find | 0C | done |
+| 5C | Viewport culling and performance | 0C | done |
 | 6A | Context menu | 1A, 1C | open |
 | 6B | Shortcut sheet | none | open |
 | 6C | Touch polish | 3A | open |
@@ -253,21 +253,21 @@ Image bytes never go in `items`, because a board document has a 1 MiB limit.
 
 ### 5A. Sections
 
-- [ ] A titled, colored area. Moving it moves the items whose centers are inside. Resizing it doesn't move anything.
-- [ ] Section names go to the assistant, so it can say "in the Research section".
-- [ ] Sections render behind other items, and their title can be edited in place.
+- [x] A titled, colored area. Moving it moves the items whose centers are inside. Resizing it doesn't move anything.
+- [x] Section names go to the assistant, so it can say "in the Research section".
+- [x] Sections render behind other items, and their title can be edited in place.
 
 ### 5B. Zoom menu and find
 
-- [ ] The zoom % button opens a menu: zoom in, zoom out, 100%, fit, zoom to selection (Shift+2).
-- [ ] Find (Cmd+F): a floating input with next and previous, which pans to and highlights matches.
-- [ ] Jump to a section from a list.
+- [x] The zoom % button opens a menu: zoom in, zoom out, 100%, fit, zoom to selection (Shift+2).
+- [x] Find (Cmd+F): a floating input with next and previous, which pans to and highlights matches.
+- [x] Jump to a section from a list.
 
 ### 5C. Viewport culling and performance
 
-- [ ] Skip rendering items outside the viewport, plus a margin.
-- [ ] Memoize `BoardItem` so a drag only re-renders the items that moved.
-- [ ] Add a dev-only way to generate a board with 2,000 items. Panning and dragging should stay smooth.
+- [x] Skip rendering items outside the viewport, plus a margin.
+- [x] Memoize `BoardItem` so a drag only re-renders the items that moved.
+- [x] Add a dev-only way to generate a board with 2,000 items. Panning and dragging should stay smooth.
 
 ## Phase 6: Polish
 

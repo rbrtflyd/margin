@@ -23,12 +23,17 @@ import { canEmbed } from '@/lib/embeds';
 import { isLoneUrl } from '@/lib/links';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
 import {
+  boundsOf,
   compactItem,
+  hasRect,
   isBox,
+  isSection,
   itemKind,
   scaleItem,
   LINK_H,
   LINK_W,
+  SECTION_H,
+  SECTION_W,
   SHAPE_SIZE,
   STICKY_SIZE,
   STICKY_WIDE,
@@ -53,13 +58,16 @@ import {
   unionBounds,
 } from '@/lib/clipboard';
 import { arrangeItems, GRID, type ArrangeOp } from '@/lib/align';
-import { restack, unlockedIds, type RestackDir } from '@/lib/stack';
+import { expandContained, restack, unlockedIds, type RestackDir } from '@/lib/stack';
+import { findMatches } from '@/lib/find';
+import { seedItems } from '@/lib/seed';
 import Canvas from './Canvas';
 import type { CanvasApi, CreateDraft, Pt } from './Canvas';
 import { toast } from '@/components/ui/toast';
 import AskPanel from './AskPanel';
 import BoardSwitcher from './BoardSwitcher';
 import CanvasToolbar from './CanvasToolbar';
+import FindBar from './FindBar';
 import SaveStatus, { type SaveStatusKind } from './SaveStatus';
 import UserMenu from './UserMenu';
 
@@ -88,6 +96,10 @@ export default function Margin({ user }: { user: User | null }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [findIndex, setFindIndex] = useState(0);
+  const findInputRef = useRef<HTMLInputElement>(null);
   const [renameOnOpen, setRenameOnOpen] = useState(false);
   const [flash, setFlash] = useState<string[]>([]);
   const [zoom, setZoom] = useState(1);
@@ -96,6 +108,7 @@ export default function Margin({ user }: { user: User | null }) {
   const [stickyStyle, setStickyStyle] = useState<ItemStyle>({ fill: 'amber' });
   const [shapeStyle, setShapeStyle] = useState<ItemStyle>({ fill: 'white' });
   const [textStyle, setTextStyle] = useState<ItemStyle>({});
+  const [sectionStyle, setSectionStyle] = useState<ItemStyle>({ fill: 'stone' });
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const previewsRef = useRef(previews);
   previewsRef.current = previews;
@@ -407,6 +420,46 @@ export default function Margin({ user }: { user: User | null }) {
     setTimeout(() => setFlash((f) => (f === ids ? [] : f)), 2400);
   };
 
+  const revealMatch = (id: string) => {
+    setSelected(new Set([id]));
+    const r = canvasApi.current?.rectOf(id);
+    if (r) {
+      canvasApi.current?.panTo({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+    }
+    doFlash([id]);
+  };
+
+  const findInBoard = (query: string) =>
+    findMatches(currentBoard()?.items ?? [], query);
+
+  const onFindQuery = (q: string) => {
+    setFindQuery(q);
+    const ids = findInBoard(q);
+    setFindIndex(0);
+    if (ids[0]) revealMatch(ids[0]);
+  };
+
+  const stepFind = (dir: 1 | -1) => {
+    const ids = findInBoard(findQuery);
+    if (!ids.length) return;
+    const i = (findIndex + dir + ids.length) % ids.length;
+    setFindIndex(i);
+    revealMatch(ids[i]);
+  };
+
+  const seedBoard = () => {
+    commitItems((items) => {
+      let maxX = 0;
+      for (const it of items) {
+        if (!hasRect(it)) continue;
+        const b = boundsOf(it);
+        maxX = Math.max(maxX, b.x + b.w);
+      }
+      const origin = { x: items.length ? maxX + 240 : 0, y: 0 };
+      return [...items, ...seedItems(2000, origin)];
+    });
+  };
+
   // ----- items -----
 
   const rememberStyle = (next: Item) => {
@@ -415,10 +468,17 @@ export default function Margin({ user }: { user: User | null }) {
     if (k === 'sticky') setStickyStyle((s) => ({ ...s, ...style }));
     else if (k === 'shape') setShapeStyle((s) => ({ ...s, ...style }));
     else if (k === 'text') setTextStyle((s) => ({ ...s, ...style }));
+    else if (k === 'section') setSectionStyle((s) => ({ ...s, ...style }));
   };
 
   const lastFor = (kind: Item['kind']) =>
-    kind === 'sticky' ? stickyStyle : kind === 'shape' ? shapeStyle : textStyle;
+    kind === 'sticky'
+      ? stickyStyle
+      : kind === 'shape'
+        ? shapeStyle
+        : kind === 'section'
+          ? sectionStyle
+          : textStyle;
 
   const createItem = (draft: CreateDraft) => {
     const b = currentBoard();
@@ -430,7 +490,9 @@ export default function Margin({ user }: { user: User | null }) {
     const media =
       kind === 'image' || kind === 'link' || kind === 'embed';
     const item = compactItem({
-      id: uid(kind === 'text' ? 't_' : kind[0] + '_'),
+      id: uid(
+        kind === 'text' ? 't_' : kind === 'section' ? 'sec_' : kind[0] + '_',
+      ),
       x: Math.round(draft.x),
       y: Math.round(draft.y),
       text: draft.text ?? '',
@@ -438,10 +500,14 @@ export default function Margin({ user }: { user: User | null }) {
       createdAt: t,
       editedAt: t,
       kind: kind === 'text' ? undefined : kind,
-      w: draft.w,
-      h: draft.h,
+      w: draft.w ?? (kind === 'section' ? SECTION_W : undefined),
+      h: draft.h ?? (kind === 'section' ? SECTION_H : undefined),
       shape: draft.shape,
-      fill: draft.fill ?? (kind === 'sticky' || kind === 'shape' ? last.fill : undefined),
+      fill:
+        draft.fill ??
+        (kind === 'sticky' || kind === 'shape' || kind === 'section'
+          ? last.fill ?? (kind === 'section' ? 'stone' : undefined)
+          : undefined),
       stroke: draft.stroke ?? (kind === 'shape' ? last.stroke : undefined),
       strokeWidth:
         draft.strokeWidth ?? (kind === 'shape' ? last.strokeWidth : undefined),
@@ -755,7 +821,10 @@ export default function Margin({ user }: { user: User | null }) {
   const nudgeSelected = (dx: number, dy: number) => {
     const b = currentBoard();
     if (!b) return;
-    const ids = unlockedIds(b.items, selectedRef.current);
+    const ids = unlockedIds(
+      b.items,
+      expandContained(b.items, selectedRef.current),
+    );
     if (!ids.length) return;
     moveItems(ids, dx, dy, 'nudge');
   };
@@ -849,7 +918,8 @@ export default function Margin({ user }: { user: User | null }) {
           kind === 'shape' ||
           kind === 'image' ||
           kind === 'link' ||
-          kind === 'embed'
+          kind === 'embed' ||
+          kind === 'section'
         )
           return { ...i, x, y, w, h };
         if (kind === 'sticky') {
@@ -889,8 +959,15 @@ export default function Margin({ user }: { user: User | null }) {
         items.map((i) => {
           if (!sel.has(i.id)) return i;
           const kind = itemKind(i);
-          if (patch.fill && kind !== 'sticky' && kind !== 'shape') return i;
-          if (patch.fill === 'none' && kind === 'sticky') return i;
+          if (
+            patch.fill &&
+            kind !== 'sticky' &&
+            kind !== 'shape' &&
+            kind !== 'section'
+          )
+            return i;
+          if (patch.fill === 'none' && (kind === 'sticky' || kind === 'section'))
+            return i;
           if (
             (patch.stroke !== undefined ||
               patch.strokeWidth !== undefined ||
@@ -959,7 +1036,7 @@ export default function Margin({ user }: { user: User | null }) {
     const b = currentBoard();
     const sel = selectedRef.current;
     if (!b || !sel.size) return;
-    const first = b.items.find((i) => sel.has(i.id) && isBox(i));
+    const first = b.items.find((i) => sel.has(i.id) && hasRect(i));
     if (!first) return;
     copiedStyle.current = styleOf(first);
   };
@@ -1190,6 +1267,12 @@ export default function Margin({ user }: { user: User | null }) {
         setAskOpen((o) => !o);
         return;
       }
+      if (mod && key === 'f') {
+        e.preventDefault();
+        setFindOpen(true);
+        requestAnimationFrame(() => findInputRef.current?.focus());
+        return;
+      }
       if (isEditable(e.target) || e.defaultPrevented) return;
       const a = actions.current;
       if (e.key === 'Escape') {
@@ -1310,6 +1393,9 @@ export default function Margin({ user }: { user: User | null }) {
         canvasApi.current?.fit();
       } else if (e.shiftKey && e.code === 'Digit0') {
         canvasApi.current?.zoomTo(1);
+      } else if (e.shiftKey && e.code === 'Digit2') {
+        const ids = Array.from(selectedRef.current);
+        if (ids.length) canvasApi.current?.frame(ids, 2);
       }
     };
 
@@ -1455,11 +1541,43 @@ export default function Margin({ user }: { user: User | null }) {
         tool={tool}
         onTool={setTool}
         onAsk={() => setAskOpen((o) => !o)}
+        onZoomBy={(f) => canvasApi.current?.zoomBy(f)}
+        onZoom100={() => canvasApi.current?.zoomTo(1)}
         onFit={() => canvasApi.current?.fit()}
+        onFrameSelection={() => {
+          const ids = Array.from(selected);
+          if (ids.length) canvasApi.current?.frame(ids, 2);
+        }}
+        sections={board.items
+          .filter(isSection)
+          .map((it) => ({
+            id: it.id,
+            name: it.text.trim() || 'Untitled',
+          }))}
+        onJumpSection={(id) => {
+          setSelected(new Set([id]));
+          canvasApi.current?.frame([id], 1);
+        }}
         snapGrid={snapGrid}
         onSnapGrid={setSnapGrid}
         onPickImages={(files) => addImages(files, dropPoint())}
+        onSeed={
+          process.env.NODE_ENV === 'development' ? seedBoard : undefined
+        }
       />
+
+      {findOpen && (
+        <FindBar
+          query={findQuery}
+          index={findIndex}
+          total={findMatches(board.items, findQuery).length}
+          inputRef={findInputRef}
+          onQuery={onFindQuery}
+          onPrev={() => stepFind(-1)}
+          onNext={() => stepFind(1)}
+          onClose={() => setFindOpen(false)}
+        />
+      )}
 
       <AskPanel
         key={`ask-${board.id}`}

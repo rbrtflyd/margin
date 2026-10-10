@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useRef, type ReactNode } from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -117,7 +117,13 @@ function LinkCard({ item, claude }: { item: Item; claude: boolean }) {
 
 function handlesFor(it: Item): Handle[] {
   const kind = itemKind(it);
-  if (kind === 'shape' || kind === 'image' || kind === 'link' || kind === 'embed') {
+  if (
+    kind === 'shape' ||
+    kind === 'image' ||
+    kind === 'link' ||
+    kind === 'embed' ||
+    kind === 'section'
+  ) {
     return ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
   }
   if (kind === 'sticky') return ['e', 'w', 'ne', 'nw', 'se', 'sw'];
@@ -444,7 +450,7 @@ interface Props {
   register: (id: string, el: HTMLDivElement | null) => void;
 }
 
-export default function BoardItem(props: Props) {
+function BoardItem(props: Props) {
   const it = props.item;
   const kind = itemKind(it);
   const fill = paintOf(it);
@@ -457,7 +463,8 @@ export default function BoardItem(props: Props) {
     props.showHandles !== false
       ? handlesFor(it)
       : [];
-  const framed = kind === 'image' || kind === 'link' || kind === 'embed';
+  const framed =
+    kind === 'image' || kind === 'link' || kind === 'embed' || kind === 'section';
   const frame = framed ? storedRect(it) : null;
   const w =
     it.w ??
@@ -518,6 +525,7 @@ export default function BoardItem(props: Props) {
         (kind === 'sticky'
           ? ' px-3 py-2.5 shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
           : '') +
+        (kind === 'section' ? ' overflow-hidden' : '') +
         (kind === 'image' ? ' overflow-hidden bg-stone-200' : '') +
         (kind === 'link' || kind === 'embed'
           ? ' overflow-hidden bg-white shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]' +
@@ -536,7 +544,7 @@ export default function BoardItem(props: Props) {
             ? ''
             : ' ' + alignClass) +
         (fill.claude && kind === 'text' ? ' text-base text-sky-800' : '') +
-        (props.selected ? ' z-1' : '') +
+        (props.selected && kind !== 'section' ? ' z-1' : '') +
         (off ? ' opacity-85' : '') +
         (props.flashing
           ? ' animate-flash motion-reduce:animate-none motion-reduce:bg-amber-200/70'
@@ -552,17 +560,39 @@ export default function BoardItem(props: Props) {
         color:
           kind === 'sticky' || kind === 'shape' || kind === 'text'
             ? ink
-            : kind === 'image'
+            : kind === 'image' || kind === 'section'
               ? ink
               : undefined,
         background:
-          kind === 'sticky' || (kind === 'text' && props.editing)
-            ? kind === 'sticky'
-              ? fill.bg
-              : '#fff'
-            : undefined,
+          kind === 'section'
+            ? fill.bg
+            : kind === 'sticky' || (kind === 'text' && props.editing)
+              ? kind === 'sticky'
+                ? fill.bg
+                : '#fff'
+              : undefined,
         padding: kind === 'shape' ? shapePad(it.shape) : undefined,
       }}>
+      {kind === 'section' && (
+        <div
+          className={
+            'absolute inset-x-0 top-0 z-[1] px-3 py-2 text-[13px] font-medium leading-snug ' +
+            (fill.claude ? 'text-sky-800' : '')
+          }>
+          {props.editing ? (
+            <Editor
+              initial={it.text}
+              onDone={(text) => props.onEditCommit(it.id, text)}
+              label="Section"
+              className="w-full"
+            />
+          ) : (
+            it.text || (
+              <span className="font-normal text-zinc-400">Section</span>
+            )
+          )}
+        </div>
+      )}
       {kind === 'shape' && (
         <ShapeSvg
           kind={it.shape}
@@ -633,7 +663,10 @@ export default function BoardItem(props: Props) {
           {!props.embedActive && <div className="absolute inset-0 z-[2]" />}
         </>
       )}
-      {kind !== 'image' && kind !== 'link' && kind !== 'embed' && (
+      {kind !== 'image' &&
+        kind !== 'link' &&
+        kind !== 'embed' &&
+        kind !== 'section' && (
       <div className={'relative z-[1] min-w-0 ' + (kind === 'shape' ? 'w-full' : '')}>
         {kind === 'text' && it.by === 'claude' && (
           <div className="mb-1 font-mono text-[9.5px] font-medium tracking-widest text-sky-700 uppercase">
@@ -681,3 +714,5 @@ export default function BoardItem(props: Props) {
     </div>
   );
 }
+
+export default memo(BoardItem);

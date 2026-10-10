@@ -264,6 +264,18 @@ describe('connectorEdges', () => {
     expect(boxesForAsk(items).map((i) => i.id)).toEqual(['a', 'b']);
     expect(
       toAskBox({
+        id: 'n1',
+        x: 0,
+        y: 0,
+        text: 'Research',
+        by: 'me',
+        createdAt: '',
+        editedAt: '',
+        kind: 'section',
+      }).kind,
+    ).toBe('section');
+    expect(
+      toAskBox({
         id: 'i1',
         x: 0,
         y: 0,

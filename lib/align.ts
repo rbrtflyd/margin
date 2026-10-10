@@ -1,7 +1,7 @@
 import type { Item } from './types';
 import {
   boundsOf,
-  isBox,
+  hasRect,
   itemKind,
   unionRect,
   type Rect,
@@ -85,12 +85,12 @@ export function alignItems(
   edge: AlignEdge,
 ): Item[] {
   const set = ids instanceof Set ? ids : new Set(ids);
-  const boxes = items.filter((i) => set.has(i.id) && isBox(i));
+  const boxes = items.filter((i) => set.has(i.id) && hasRect(i));
   const target = unionRect(boxes.map(boundsOf));
   if (!target || boxes.length < 2) return items;
   return items.map((i) => {
     if (!set.has(i.id)) return i;
-    if (isBox(i)) {
+    if (hasRect(i)) {
       const { dx, dy } = deltaFor(boundsOf(i), target, edge);
       return applyDelta(i, dx, dy);
     }
@@ -110,7 +110,7 @@ export function distributeItems(
   axis: DistributeAxis,
 ): Item[] {
   const set = ids instanceof Set ? ids : new Set(ids);
-  const boxes = items.filter((i) => set.has(i.id) && isBox(i));
+  const boxes = items.filter((i) => set.has(i.id) && hasRect(i));
   if (boxes.length < 3) return items;
   const sorted = [...boxes].sort((a, b) => {
     const ra = boundsOf(a);
@@ -158,7 +158,7 @@ export function distributeItems(
 
 export function tidyItems(items: Item[], ids: Iterable<string>): Item[] {
   const set = ids instanceof Set ? ids : new Set(ids);
-  const boxes = items.filter((i) => set.has(i.id) && isBox(i));
+  const boxes = items.filter((i) => set.has(i.id) && hasRect(i));
   if (boxes.length < 2) return items;
   const rects = boxes.map(boundsOf);
   const u = unionRect(rects);

@@ -1,5 +1,5 @@
 import type { Anchor, Item } from './types';
-import { boundsOf, compactItem, isBox, itemKind, type Rect } from './items';
+import { boundsOf, compactItem, hasRect, itemKind, type Rect } from './items';
 import { detachAnchor, isAttach, nodeRects } from './connectors';
 import { nowISO, uid } from './store';
 
@@ -73,7 +73,7 @@ export function cloneItems(source: Item[], board: Item[]): Item[] {
 }
 
 export function unionBounds(items: Item[]): Rect | null {
-  const boxes = items.filter(isBox).map(boundsOf);
+  const boxes = items.filter(hasRect).map(boundsOf);
   if (!boxes.length) {
     const pts = items.filter((i) => itemKind(i) === 'connector');
     if (!pts.length) return null;

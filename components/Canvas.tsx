@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
@@ -18,7 +18,9 @@ import type {
 import {
   boundsOf,
   forgetSize,
+  hasRect,
   isBox,
+  isSection,
   itemKind,
   mapPoint,
   rememberSize,
@@ -62,12 +64,13 @@ import { startPan } from './canvas/pan';
 import { startMove } from './canvas/move';
 import { startMarquee } from './canvas/marquee';
 import { startResize } from './canvas/resize';
-import { placeShape, placeSticky, startPlace } from './canvas/place';
+import { placeSection, placeShape, placeSticky, startPlace } from './canvas/place';
 import { startConnect, startConnectFrom } from './canvas/connect';
 import { startBend } from './canvas/bend';
 import { startLabel } from './canvas/label';
 import { startEndpoint } from './canvas/endpoint';
 import { endDrag, moveDrag } from './canvas/index';
+import { intersects, pointsBounds, worldViewport } from '@/lib/viewport';
 
 export type { Pt, Rect, CreateDraft };
 
@@ -77,6 +80,8 @@ export interface CanvasApi {
   pointer(): Pt | null;
   fit(): void;
   zoomTo(k: number): void;
+  zoomBy(factor: number): void;
+  frame(ids: string[], maxK: number): void;
   rectOf(id: string): Rect | null;
   panTo(p: Pt): void;
 }
@@ -160,6 +165,27 @@ const MIN_K = 0.1;
 const MAX_K = 4;
 const clampK = (k: number) => Math.min(MAX_K, Math.max(MIN_K, k));
 
+function hitFromTop(
+  items: Item[],
+  w: Pt,
+  match: (it: Item) => boolean,
+  pad: number,
+): Item | null {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (!match(it)) continue;
+    const b = boundsOf(it);
+    if (
+      w.x >= b.x - pad &&
+      w.x <= b.x + b.w + pad &&
+      w.y >= b.y - pad &&
+      w.y <= b.y + b.h + pad
+    )
+      return it;
+  }
+  return null;
+}
+
 export default function Canvas(props: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>(
@@ -210,6 +236,10 @@ export default function Canvas(props: Props) {
   const [, setLabelTick] = useState(0);
   const els = useRef(new Map<string, Element>());
   const [, setMeasureTick] = useState(0);
+  const [viewportSize, setViewportSize] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
   if (!roRef.current && typeof ResizeObserver !== 'undefined') {
     roRef.current = new ResizeObserver((entries) => {
@@ -225,7 +255,7 @@ export default function Canvas(props: Props) {
     });
   }
 
-  function watchEl(id: string, el: Element | null) {
+  const watchEl = useCallback((id: string, el: Element | null) => {
     const ro = roRef.current;
     const prev = els.current.get(id);
     if (prev && ro) ro.unobserve(prev);
@@ -239,7 +269,11 @@ export default function Canvas(props: Props) {
       els.current.delete(id);
       forgetSize(id);
     }
-  }
+  }, []);
+
+  const onEditCommit = useCallback((id: string, text: string) => {
+    propsRef.current.onEditCommit(id, text);
+  }, []);
 
   function watchLabel(id: string, el: HTMLDivElement | null) {
     if (!el) {
@@ -314,7 +348,7 @@ export default function Canvas(props: Props) {
     activateEmbed: (id) => setActiveEmbedId(id),
   };
 
-  function fitTo(items: Item[]) {
+  function frameTo(items: Item[], maxK: number) {
     const r = rootRect();
     if (!r) return;
     if (!items.length) {
@@ -337,7 +371,7 @@ export default function Canvas(props: Props) {
         }
         continue;
       }
-      if (!isBox(it)) continue;
+      if (!hasRect(it)) continue;
       const box = rects.get(it.id);
       const w = box ? box.w : 240;
       const h = box ? box.h : 40;
@@ -353,7 +387,7 @@ export default function Canvas(props: Props) {
     const pad = 80;
     const k = clampK(
       Math.min(
-        1,
+        maxK,
         (r.width - pad * 2) / Math.max(1, x1 - x0),
         (r.height - pad * 2 - 60) / Math.max(1, y1 - y0),
       ),
@@ -365,9 +399,24 @@ export default function Canvas(props: Props) {
     });
   }
 
+  function fitTo(items: Item[]) {
+    frameTo(items, 1);
+  }
+
   useLayoutEffect(() => {
     if (!props.initialView) fitTo(props.items);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const cr = entries[0]?.contentRect;
+      if (cr) setViewportSize({ w: cr.width, h: cr.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -399,6 +448,17 @@ export default function Canvas(props: Props) {
       zoomTo: (k: number) => {
         const r = rootRect();
         if (r) zoomAt(r.width / 2, r.height / 2, k / viewRef.current.k);
+      },
+      zoomBy: (factor: number) => {
+        const r = rootRect();
+        if (r) zoomAt(r.width / 2, r.height / 2, factor);
+      },
+      frame: (ids: string[], maxK: number) => {
+        if (!ids.length) return;
+        const set = new Set(ids);
+        const items = propsRef.current.items.filter((i) => set.has(i.id));
+        if (!items.length) return;
+        frameTo(items, maxK);
       },
       rectOf: (id: string) => {
         const it = propsRef.current.items.find((i) => i.id === id);
@@ -556,23 +616,10 @@ export default function Canvas(props: Props) {
         const w = ctx.toWorld(e.clientX, e.clientY);
         const items = ctx.propsRef.current.items;
         const selected = ctx.propsRef.current.selected;
-        let hit: string | null = null;
-        for (let i = items.length - 1; i >= 0; i--) {
-          const it = items[i];
-          if (!isBox(it)) continue;
-          const b = boundsOf(it);
-          const pad = PLUS_OUT + 12;
-          if (
-            w.x >= b.x - pad &&
-            w.x <= b.x + b.w + pad &&
-            w.y >= b.y - pad &&
-            w.y <= b.y + b.h + pad
-          ) {
-            hit = selected.has(it.id) ? null : it.id;
-            break;
-          }
-        }
-        setHoverId(hit);
+        const hitBox = hitFromTop(items, w, isBox, PLUS_OUT + 12);
+        const hit =
+          hitBox ?? hitFromTop(items, w, isSection, 0);
+        setHoverId(hit && !selected.has(hit.id) ? hit.id : null);
         return;
       }
       const dx = e.clientX - ('sx' in d ? d.sx : 0);
@@ -632,14 +679,13 @@ export default function Canvas(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function onResizeDown(
-    id: string,
-    handle: Handle,
-    e: ReactPointerEvent,
-  ) {
-    const next = startResize(ctxRef.current, [id], handle, e);
-    if (next) dragRef.current = next;
-  }
+  const onResizeDown = useCallback(
+    (id: string, handle: Handle, e: ReactPointerEvent) => {
+      const next = startResize(ctxRef.current, [id], handle, e);
+      if (next) dragRef.current = next;
+    },
+    [],
+  );
 
   function onUnionResizeDown(handle: Handle, e: ReactPointerEvent) {
     e.stopPropagation();
@@ -752,6 +798,11 @@ export default function Canvas(props: Props) {
       return;
     }
 
+    if (!itemId && p.tool.type === 'section') {
+      placeSection(ctx, world);
+      return;
+    }
+
     if (itemId) {
       setHoverId(null);
       const next = startMove(ctx, e, itemId);
@@ -798,9 +849,36 @@ export default function Canvas(props: Props) {
 
   const shown = preview ?? props.selected;
   const flash = new Set(props.flash);
-  const nodes = props.items.filter((it) => isBox(it));
-  const lines = props.items.filter((it) => itemKind(it) === 'connector');
   const rects = liveRects(props.items, dragging, resize);
+  const cull =
+    viewportSize &&
+    worldViewport(view, viewportSize.w, viewportSize.h);
+  function inView(it: Item): boolean {
+    if (!cull) return true;
+    if (props.editingId === it.id || activeEmbedId === it.id) return true;
+    if (dragging && dragging.ids.has(it.id)) return true;
+    if (resize && resize.ids.includes(it.id)) return true;
+    if (itemKind(it) === 'connector') {
+      const ends = resolveEnds(it.start, it.end, rects, {
+        x: it.x,
+        y: it.y,
+      });
+      return intersects(
+        cull,
+        pointsBounds(
+          [ends.start.p, ends.end.p],
+          Math.abs(it.bend ?? 0),
+        ),
+      );
+    }
+    const box = rects.get(it.id);
+    return box ? intersects(cull, box) : true;
+  }
+  const sections = props.items.filter((it) => isSection(it) && inView(it));
+  const nodes = props.items.filter((it) => isBox(it) && inView(it));
+  const lines = props.items.filter(
+    (it) => itemKind(it) === 'connector' && inView(it),
+  );
   const cursor =
     panning
       ? ' cursor-grabbing'
@@ -814,7 +892,7 @@ export default function Canvas(props: Props) {
 
   const selectedItems = props.items.filter((i) => shown.has(i.id));
   const union = unionRect(
-    selectedItems.filter(isBox).map((i) => rects.get(i.id) ?? storedRect(i)),
+    selectedItems.filter(hasRect).map((i) => rects.get(i.id) ?? storedRect(i)),
   );
   let barLeft = 0;
   let barTop = 0;
@@ -891,6 +969,38 @@ export default function Canvas(props: Props) {
     return connectorPoints(ends.start, ends.end, route);
   })();
 
+  function renderBoardItem(it: Item) {
+    const liveBox =
+      resize && resize.ids.includes(it.id) ? rects.get(it.id) : null;
+    const drawn = liveBox
+      ? { ...it, x: liveBox.x, y: liveBox.y, w: liveBox.w, h: liveBox.h }
+      : it;
+    const off =
+      dragging && dragging.ids.has(it.id) && !liveBox ? dragging : null;
+    return (
+      <BoardItem
+        key={it.id}
+        item={drawn}
+        selected={shown.has(it.id)}
+        hovered={hoverId === it.id}
+        showHandles={shown.size === 1}
+        editing={props.editingId === it.id}
+        flashing={flash.has(it.id)}
+        offset={off}
+        zoom={view.k}
+        src={
+          it.assetId
+            ? props.assetUrls?.[it.assetId]
+            : props.assetUrls?.[it.id]
+        }
+        embedActive={activeEmbedId === it.id}
+        onEditCommit={onEditCommit}
+        onResizeDown={onResizeDown}
+        register={watchEl}
+      />
+    );
+  }
+
   return (
     <div
       ref={rootRef}
@@ -926,6 +1036,7 @@ export default function Canvas(props: Props) {
         style={{
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
         }}>
+        {sections.map((it) => renderBoardItem(it))}
         <svg
           className="absolute overflow-visible"
           width={1}
@@ -1083,41 +1194,7 @@ export default function Canvas(props: Props) {
             }}
           />
         )}
-        {nodes.map((it) => {
-          const liveBox =
-            resize && resize.ids.includes(it.id) ? rects.get(it.id) : null;
-          const drawn = liveBox
-            ? { ...it, x: liveBox.x, y: liveBox.y, w: liveBox.w, h: liveBox.h }
-            : it;
-          const off =
-            dragging && dragging.ids.has(it.id) && !liveBox
-              ? dragging
-              : null;
-          return (
-            <BoardItem
-              key={it.id}
-              item={drawn}
-              selected={shown.has(it.id)}
-              hovered={hoverId === it.id}
-              showHandles={shown.size === 1}
-              editing={props.editingId === it.id}
-              flashing={flash.has(it.id)}
-              offset={off}
-              zoom={view.k}
-              src={
-                it.assetId
-                  ? props.assetUrls?.[it.assetId]
-                  : props.assetUrls?.[it.id]
-              }
-              embedActive={activeEmbedId === it.id}
-              onEditCommit={(id, text) =>
-                propsRef.current.onEditCommit(id, text)
-              }
-              onResizeDown={onResizeDown}
-              register={watchEl}
-            />
-          );
-        })}
+        {nodes.map((it) => renderBoardItem(it))}
         {!dragging &&
           !resize &&
           !draftLine &&

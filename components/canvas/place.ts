@@ -1,4 +1,5 @@
 import type { ShapeKind } from '@/lib/types';
+import { SECTION_H, SECTION_W } from '@/lib/items';
 import type { Drag, InteractionCtx } from './types';
 
 export function startPlace(
@@ -106,6 +107,21 @@ export function placeShape(
     textColor: s.textColor,
     fontSize: s.fontSize,
     align: s.align,
+    text: '',
+    edit: true,
+  });
+}
+
+export function placeSection(
+  ctx: InteractionCtx,
+  world: { x: number; y: number },
+) {
+  ctx.propsRef.current.onCreate({
+    kind: 'section',
+    x: world.x - SECTION_W / 2,
+    y: world.y - SECTION_H / 2,
+    w: SECTION_W,
+    h: SECTION_H,
     text: '',
     edit: true,
   });

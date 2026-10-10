@@ -512,6 +512,7 @@ export function toAskBox(i: Item): AskBox {
     y: i.y,
     by: i.by,
   };
+  if (itemKind(i) === 'section') out.kind = 'section';
   if (i.url) out.url = i.url;
   if (i.meta?.title) out.title = i.meta.title;
   if (i.meta?.description) out.description = i.meta.description;

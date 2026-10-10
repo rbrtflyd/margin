@@ -69,7 +69,8 @@ export type Tool =
   | { type: 'text' }
   | { type: 'sticky' }
   | { type: 'shape'; shape: ShapeKind }
-  | { type: 'connector'; route: Route };
+  | { type: 'connector'; route: Route }
+  | { type: 'section' };
 
 /** A board object. Missing kind means a text box. */
 export interface Item {
@@ -151,6 +152,7 @@ export type AskBox = {
   x: number;
   y: number;
   by: Author;
+  kind?: 'section';
   url?: string;
   title?: string;
   description?: string;

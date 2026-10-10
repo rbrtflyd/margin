@@ -123,6 +123,27 @@ describe('boardContext', () => {
     expect(ctx).toContain('url: https://github.com/foo/bar');
     expect(ctx).not.toMatch(/\[i1\][^\n]*\n\(empty\)/);
   });
+
+  it('labels a section by name', () => {
+    const ctx = boardContext({
+      question: "what's on the board?",
+      boardName: 'Board',
+      items: [
+        {
+          id: 'n1',
+          text: 'Research',
+          x: 0,
+          y: 0,
+          by: 'me',
+          kind: 'section',
+        },
+      ],
+      edges: [],
+      selectedIds: [],
+      history: [],
+    });
+    expect(ctx).toContain('section: Research');
+  });
 });
 
 describe('SYSTEM_PROMPT', () => {
@@ -137,5 +158,6 @@ describe('SYSTEM_PROMPT', () => {
     expect(SYSTEM_PROMPT).toMatch(/captions/i);
     expect(SYSTEM_PROMPT).toMatch(/pixels/i);
     expect(SYSTEM_PROMPT).toMatch(/link cards/i);
+    expect(SYSTEM_PROMPT).toMatch(/sections/i);
   });
 });

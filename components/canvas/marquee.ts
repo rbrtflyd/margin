@@ -1,4 +1,4 @@
-import { boundsOf, isBox, itemKind } from '@/lib/items';
+import { boundsOf, hasRect, itemKind } from '@/lib/items';
 import { itemConnectorPoints } from '@/lib/connectors';
 import type { Drag, InteractionCtx } from './types';
 
@@ -70,7 +70,7 @@ export function moveMarquee(
         hits.add(it.id);
       continue;
     }
-    if (!isBox(it)) continue;
+    if (!hasRect(it)) continue;
     if (intersects(boundsOf(it), left, right, top, bottom)) hits.add(it.id);
   }
   ctx.previewRef.current = hits;

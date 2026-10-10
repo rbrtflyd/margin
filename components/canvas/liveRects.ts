@@ -1,5 +1,5 @@
 import type { Item } from '@/lib/types';
-import { boundsOf, isBox, mapBox, type Rect } from '@/lib/items';
+import { boundsOf, hasRect, mapBox, type Rect } from '@/lib/items';
 import type { ResizeLive } from './types';
 
 export function liveRects(
@@ -10,7 +10,7 @@ export function liveRects(
   const m = new Map<string, Rect>();
   const scaled = resize ? new Set(resize.ids) : null;
   for (const it of items) {
-    if (!isBox(it)) continue;
+    if (!hasRect(it)) continue;
     if (resize && scaled?.has(it.id)) {
       m.set(it.id, mapBox(resize.from, resize.to, boundsOf(it)));
       continue;
