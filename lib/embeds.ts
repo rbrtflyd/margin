@@ -123,3 +123,16 @@ export function embedAllow(raw: string): string {
 export function canEmbed(raw: string | undefined): boolean {
   return !!raw && !!embedSrc(raw);
 }
+
+/** Static poster for an inactive embed, or null to fall back to the link card. */
+export function embedPoster(raw: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  const yt = youtubeId(url);
+  if (yt) return 'https://i.ytimg.com/vi/' + yt + '/hqdefault.jpg';
+  return null;
+}

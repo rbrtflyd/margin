@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { embedSrc } from './embeds';
+import { embedPoster, embedSrc } from './embeds';
 
 describe('embedSrc', () => {
   it('rewrites a YouTube watch URL to youtube-nocookie embed', () => {
@@ -26,5 +26,21 @@ describe('embedSrc', () => {
     expect(embedSrc('https://open.spotify.com/track/abc')).toBe(
       'https://open.spotify.com/embed/track/abc',
     );
+  });
+});
+
+describe('embedPoster', () => {
+  it('returns a YouTube thumbnail without activating the player', () => {
+    expect(embedPoster('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(
+      'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+    );
+    expect(embedPoster('https://youtu.be/dQw4w9WgXcQ')).toBe(
+      'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+    );
+  });
+
+  it('leaves non-YouTube URLs to unfurl thumbs', () => {
+    expect(embedPoster('https://vimeo.com/123456789')).toBeNull();
+    expect(embedPoster('https://github.com/facebook/react')).toBeNull();
   });
 });

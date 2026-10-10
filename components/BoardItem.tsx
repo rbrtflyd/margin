@@ -19,7 +19,7 @@ import {
 } from '@/lib/items';
 import { Markdown } from '@/lib/markdown';
 import { shapePad, shapePaths } from '@/lib/shapes';
-import { embedAllow, embedSrc } from '@/lib/embeds';
+import { embedAllow, embedPoster, embedSrc } from '@/lib/embeds';
 import { FORMAT_EVENT, wrapSelection, type FormatKind } from '@/lib/format';
 
 export const HANDLE_POS: Record<
@@ -54,6 +54,27 @@ function hostOf(url?: string): string {
   } catch {
     return url;
   }
+}
+
+function EmbedPreview({ item, claude }: { item: Item; claude: boolean }) {
+  const poster = (item.url && embedPoster(item.url)) || item.meta?.thumb;
+  if (!poster) {
+    return (
+      <LinkCard
+        item={item}
+        claude={claude}
+      />
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={poster}
+      alt={item.meta?.title || ''}
+      draggable={false}
+      className="pointer-events-none size-full object-cover"
+    />
+  );
 }
 
 function LinkCard({ item, claude }: { item: Item; claude: boolean }) {
@@ -604,7 +625,7 @@ export default function BoardItem(props: Props) {
               allow={embedAllow(it.url)}
             />
           ) : (
-            <LinkCard
+            <EmbedPreview
               item={it}
               claude={fill.claude}
             />
