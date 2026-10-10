@@ -8,47 +8,35 @@ import type {
 } from 'react';
 import type {
   Anchor,
-  Author,
-  Fill,
   Handle,
   Item,
-  ItemKind,
-  Route,
-  ShapeKind,
   Tool,
   View,
 } from '@/lib/types';
-import { itemKind, storedRect, applyResize, type Rect } from '@/lib/items';
+import { itemKind, storedRect, type Rect } from '@/lib/items';
 import {
   alongPath,
   arrowHead,
   connectorPoints,
   pathD,
   resolveAnchor,
-  snapAnchor,
   type Pt,
 } from '@/lib/connectors';
 import BoardItem, { Editor } from './BoardItem';
 import SelectionBar from './SelectionBar';
+import type { CreateDraft, Drag, InteractionCtx } from './canvas/types';
+import { isEditable } from './canvas/types';
+import { liveRects } from './canvas/liveRects';
+import { startPan } from './canvas/pan';
+import { startMove } from './canvas/move';
+import { startMarquee } from './canvas/marquee';
+import { startResize } from './canvas/resize';
+import { placeShape, placeSticky, startPlace } from './canvas/place';
+import { startConnect } from './canvas/connect';
+import { startEndpoint } from './canvas/endpoint';
+import { endDrag, moveDrag } from './canvas/index';
 
-export type { Pt };
-export type { Rect };
-
-export type CreateDraft = {
-  kind?: ItemKind;
-  x: number;
-  y: number;
-  w?: number;
-  h?: number;
-  text?: string;
-  by?: Author;
-  shape?: ShapeKind;
-  fill?: Fill;
-  route?: Route;
-  start?: Anchor;
-  end?: Anchor;
-  edit?: boolean;
-};
+export type { Pt, Rect, CreateDraft };
 
 /** What the rest of the app can ask of the canvas. */
 export interface CanvasApi {
@@ -80,114 +68,9 @@ interface Props {
   onZoom(k: number): void;
 }
 
-type Drag =
-  | {
-      kind: 'pan';
-      sx: number;
-      sy: number;
-      vx: number;
-      vy: number;
-      moved: boolean;
-    }
-  | {
-      kind: 'move';
-      sx: number;
-      sy: number;
-      ids: string[];
-      clickId: string;
-      wasSelected: boolean;
-      shift: boolean;
-      moved: boolean;
-    }
-  | {
-      kind: 'marquee';
-      sx: number;
-      sy: number;
-      base: Set<string>;
-      moved: boolean;
-    }
-  | {
-      kind: 'place';
-      sx: number;
-      sy: number;
-      wx: number;
-      wy: number;
-      moved: boolean;
-    }
-  | {
-      kind: 'connector';
-      start: Anchor;
-      moved: boolean;
-    }
-  | {
-      kind: 'resize';
-      id: string;
-      handle: Handle;
-      sx: number;
-      sy: number;
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-      keepRatio: boolean;
-      moved: boolean;
-    }
-  | {
-      kind: 'endpoint';
-      id: string;
-      which: 'start' | 'end';
-      moved: boolean;
-    };
-
 const MIN_K = 0.1;
 const MAX_K = 4;
 const clampK = (k: number) => Math.min(MAX_K, Math.max(MIN_K, k));
-
-function isEditable(t: EventTarget | null): boolean {
-  if (!(t instanceof HTMLElement)) return false;
-  return (
-    t.isContentEditable ||
-    t.tagName === 'INPUT' ||
-    t.tagName === 'TEXTAREA' ||
-    t.tagName === 'SELECT'
-  );
-}
-
-function liveRects(
-  items: Item[],
-  els: Map<string, Element>,
-  dragging: { ids: Set<string>; x: number; y: number } | null,
-  resize: Rect & { id: string } | null,
-): Map<string, Rect> {
-  const m = new Map<string, Rect>();
-  for (const it of items) {
-    if (itemKind(it) === 'connector') continue;
-    if (resize && resize.id === it.id) {
-      m.set(it.id, {
-        x: resize.x,
-        y: resize.y,
-        w: resize.w,
-        h: resize.h,
-      });
-      continue;
-    }
-    const el = els.get(it.id);
-    const ox = dragging && dragging.ids.has(it.id) ? dragging.x : 0;
-    const oy = dragging && dragging.ids.has(it.id) ? dragging.y : 0;
-    if (el instanceof HTMLElement) {
-      m.set(it.id, {
-        x: it.x + ox,
-        y: it.y + oy,
-        w: el.offsetWidth,
-        h: el.offsetHeight,
-      });
-    } else {
-      const r = storedRect(it);
-      m.set(it.id, { x: r.x + ox, y: r.y + oy, w: r.w, h: r.h });
-    }
-  }
-  return m;
-}
 
 export default function Canvas(props: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -233,6 +116,7 @@ export default function Canvas(props: Props) {
   const touches = useRef(new Map<number, Pt>());
   const pinch = useRef<{ d0: number; k0: number } | null>(null);
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
+  const ctxRef = useRef<InteractionCtx>(null as unknown as InteractionCtx);
 
   function rootRect(): DOMRect | null {
     return rootRef.current ? rootRef.current.getBoundingClientRect() : null;
@@ -265,6 +149,27 @@ export default function Canvas(props: Props) {
       resize,
     );
   }
+
+  ctxRef.current = {
+    viewRef,
+    propsRef: propsRef as InteractionCtx['propsRef'],
+    dragRef,
+    els,
+    previewRef,
+    lastTap,
+    setView,
+    setDragging,
+    setPanning,
+    setPlaceBox,
+    setDraftLine,
+    setResize,
+    setEndDraft,
+    setMarquee,
+    setPreview,
+    toWorld,
+    currentRects,
+    rootRect,
+  };
 
   function fitTo(items: Item[]) {
     const r = rootRect();
@@ -460,7 +365,8 @@ export default function Canvas(props: Props) {
 
   useEffect(() => {
     const move = (e: PointerEvent) => {
-      const r = rootRect();
+      const ctx = ctxRef.current;
+      const r = ctx.rootRect();
       if (
         r &&
         e.clientX >= r.left &&
@@ -468,7 +374,7 @@ export default function Canvas(props: Props) {
         e.clientY >= r.top &&
         e.clientY <= r.bottom
       ) {
-        pointerWorld.current = toWorld(e.clientX, e.clientY);
+        pointerWorld.current = ctx.toWorld(e.clientX, e.clientY);
       }
       if (e.pointerType === 'touch' && touches.current.has(e.pointerId)) {
         touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -484,165 +390,37 @@ export default function Canvas(props: Props) {
           return;
         }
       }
-      const d = dragRef.current;
+      const d = ctx.dragRef.current;
       if (!d) return;
       const dx = e.clientX - ('sx' in d ? d.sx : 0);
       const dy = e.clientY - ('sy' in d ? d.sy : 0);
       if (!d.moved && Math.hypot(dx, dy) < 3 && d.kind !== 'connector' && d.kind !== 'endpoint')
         return;
       d.moved = true;
-      if (d.kind === 'pan') {
-        setView((v) => ({ ...v, x: d.vx + dx, y: d.vy + dy }));
-      } else if (d.kind === 'move') {
-        const k = viewRef.current.k;
-        setDragging({ ids: new Set(d.ids), x: dx / k, y: dy / k });
-      } else if (d.kind === 'place') {
-        const w = toWorld(e.clientX, e.clientY);
-        setPlaceBox({
-          x: Math.min(d.wx, w.x),
-          y: Math.min(d.wy, w.y),
-          w: Math.abs(w.x - d.wx),
-          h: Math.abs(w.y - d.wy),
-        });
-      } else if (d.kind === 'connector') {
-        const w = toWorld(e.clientX, e.clientY);
-        setDraftLine({
-          start: d.start,
-          end: snapAnchor(w, currentRects()),
-        });
-      } else if (d.kind === 'resize') {
-        const k = viewRef.current.k;
-        const box = applyResize(
-          { x: d.x, y: d.y, w: d.w, h: d.h },
-          d.handle,
-          dx / k,
-          dy / k,
-          d.keepRatio,
-        );
-        setResize({ id: d.id, ...box });
-      } else if (d.kind === 'endpoint') {
-        const w = toWorld(e.clientX, e.clientY);
-        setEndDraft({
-          id: d.id,
-          which: d.which,
-          anchor: snapAnchor(w, currentRects()),
-        });
-      } else if (r) {
-        const m = {
-          x0: d.sx - r.left,
-          y0: d.sy - r.top,
-          x1: e.clientX - r.left,
-          y1: e.clientY - r.top,
-        };
-        setMarquee(m);
-        const left = Math.min(d.sx, e.clientX),
-          right = Math.max(d.sx, e.clientX);
-        const top = Math.min(d.sy, e.clientY),
-          bottom = Math.max(d.sy, e.clientY);
-        const hits = new Set(d.base);
-        els.current.forEach((el, id) => {
-          const b = el.getBoundingClientRect();
-          if (
-            b.right >= left &&
-            b.left <= right &&
-            b.bottom >= top &&
-            b.top <= bottom
-          )
-            hits.add(id);
-        });
-        previewRef.current = hits;
-        setPreview(hits);
-      }
+      moveDrag(ctx, d, e);
     };
 
     const up = (e: PointerEvent) => {
+      const ctx = ctxRef.current;
       if (e.pointerType === 'touch') {
         touches.current.delete(e.pointerId);
         if (touches.current.size < 2) pinch.current = null;
       }
-      const d = dragRef.current;
+      const d = ctx.dragRef.current;
       if (!d) return;
-      dragRef.current = null;
-      setPanning(false);
-      const p = propsRef.current;
-      if (d.kind === 'move') {
-        if (d.moved) {
-          const k = viewRef.current.k;
-          p.onMove(d.ids, (e.clientX - d.sx) / k, (e.clientY - d.sy) / k);
-        } else if (!d.shift && d.wasSelected && p.selected.size > 1) {
-          p.onSelect(new Set([d.clickId]));
-        }
-        setDragging(null);
-      } else if (d.kind === 'marquee') {
-        if (d.moved) p.onSelect(previewRef.current ?? new Set());
-        else p.onSelect(new Set());
-        previewRef.current = null;
-        setPreview(null);
-        setMarquee(null);
-      } else if (d.kind === 'place') {
-        const w = toWorld(e.clientX, e.clientY);
-        setPlaceBox(null);
-        if (d.moved) {
-          p.onCreate({
-            kind: 'text',
-            x: Math.min(d.wx, w.x),
-            y: Math.min(d.wy, w.y),
-            w: Math.max(40, Math.abs(w.x - d.wx)),
-            text: '',
-            edit: true,
-          });
-        } else {
-          p.onCreate({
-            kind: 'text',
-            x: d.wx,
-            y: d.wy,
-            text: '',
-            edit: true,
-          });
-        }
-      } else if (d.kind === 'connector') {
-        const w = toWorld(e.clientX, e.clientY);
-        const end = snapAnchor(w, currentRects());
-        setDraftLine(null);
-        if (d.moved) {
-          p.onCreate({
-            kind: 'connector',
-            x: 0,
-            y: 0,
-            text: '',
-            route: p.tool.type === 'connector' ? p.tool.route : 'straight',
-            start: d.start,
-            end,
-          });
-        }
-      } else if (d.kind === 'resize') {
-        const k = viewRef.current.k;
-        const box = applyResize(
-          { x: d.x, y: d.y, w: d.w, h: d.h },
-          d.handle,
-          (e.clientX - d.sx) / k,
-          (e.clientY - d.sy) / k,
-          d.keepRatio,
-        );
-        if (d.moved) p.onResize(d.id, box, d.handle);
-        setResize(null);
-      } else if (d.kind === 'endpoint') {
-        const w = toWorld(e.clientX, e.clientY);
-        const anchor = snapAnchor(w, currentRects());
-        if (d.moved) {
-          p.onPatch(d.id, d.which === 'start' ? { start: anchor } : { end: anchor });
-        }
-        setEndDraft(null);
-      } else if (!d.moved && e.pointerType === 'touch' && p.tool.type === 'select') {
+      ctx.dragRef.current = null;
+      ctx.setPanning(false);
+      const p = ctx.propsRef.current;
+      if (d.kind === 'pan' && !d.moved && e.pointerType === 'touch' && p.tool.type === 'select') {
         const now = Date.now();
-        const last = lastTap.current;
+        const last = ctx.lastTap.current;
         if (
           last &&
           now - last.t < 320 &&
           Math.hypot(e.clientX - last.x, e.clientY - last.y) < 24
         ) {
-          lastTap.current = null;
-          const w = toWorld(e.clientX, e.clientY);
+          ctx.lastTap.current = null;
+          const w = ctx.toWorld(e.clientX, e.clientY);
           p.onCreate({
             kind: 'text',
             x: w.x - 8,
@@ -651,10 +429,12 @@ export default function Canvas(props: Props) {
             edit: true,
           });
         } else {
-          lastTap.current = { t: now, x: e.clientX, y: e.clientY };
+          ctx.lastTap.current = { t: now, x: e.clientX, y: e.clientY };
           p.onSelect(new Set());
         }
+        return;
       }
+      endDrag(ctx, d, e);
     };
 
     window.addEventListener('pointermove', move);
@@ -673,28 +453,14 @@ export default function Canvas(props: Props) {
     handle: Handle,
     e: ReactPointerEvent,
   ) {
-    const it = propsRef.current.items.find((i) => i.id === id);
-    if (!it) return;
-    const box = currentRects().get(id) ?? storedRect(it);
-    const kind = itemKind(it);
-    dragRef.current = {
-      kind: 'resize',
-      id,
-      handle,
-      sx: e.clientX,
-      sy: e.clientY,
-      x: box.x,
-      y: box.y,
-      w: box.w,
-      h: box.h,
-      keepRatio: (kind === 'shape' || kind === 'sticky') && handle.length === 2,
-      moved: false,
-    };
+    const next = startResize(ctxRef.current, id, handle, e);
+    if (next) dragRef.current = next;
   }
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (isEditable(e.target)) return;
-    const p = propsRef.current;
+    const ctx = ctxRef.current;
+    const p = ctx.propsRef.current;
     if (e.pointerType === 'touch') {
       touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.current.size === 2) {
@@ -704,7 +470,7 @@ export default function Canvas(props: Props) {
           k0: viewRef.current.k,
         };
         dragRef.current = null;
-        setDragging(null);
+        ctx.setDragging(null);
         return;
       }
     }
@@ -713,8 +479,7 @@ export default function Canvas(props: Props) {
     const endEl = target.closest<HTMLElement>('[data-end]');
     const itemEl = target.closest<HTMLElement>('[data-item]');
     const itemId = itemEl ? (itemEl.dataset.item ?? null) : null;
-    const v = viewRef.current;
-    const world = toWorld(e.clientX, e.clientY);
+    const world = ctx.toWorld(e.clientX, e.clientY);
 
     if (
       e.button === 1 ||
@@ -722,115 +487,45 @@ export default function Canvas(props: Props) {
       (!itemId && e.pointerType === 'touch' && p.tool.type === 'select')
     ) {
       e.preventDefault();
-      dragRef.current = {
-        kind: 'pan',
-        sx: e.clientX,
-        sy: e.clientY,
-        vx: v.x,
-        vy: v.y,
-        moved: false,
-      };
-      setPanning(true);
+      dragRef.current = startPan(ctx, e);
       return;
     }
 
     if (endEl && itemId) {
-      const which = endEl.dataset.end === 'start' ? 'start' : 'end';
-      dragRef.current = { kind: 'endpoint', id: itemId, which, moved: false };
+      dragRef.current = startEndpoint(
+        itemId,
+        endEl.dataset.end === 'start' ? 'start' : 'end',
+      );
       return;
     }
 
     if (p.tool.type === 'connector') {
-      dragRef.current = {
-        kind: 'connector',
-        start: snapAnchor(world, currentRects()),
-        moved: false,
-      };
+      dragRef.current = startConnect(ctx, world);
       return;
     }
 
     if (!itemId && p.tool.type === 'text') {
-      dragRef.current = {
-        kind: 'place',
-        sx: e.clientX,
-        sy: e.clientY,
-        wx: world.x,
-        wy: world.y,
-        moved: false,
-      };
+      dragRef.current = startPlace(e, world);
       return;
     }
 
     if (!itemId && p.tool.type === 'sticky') {
-      p.onCreate({
-        kind: 'sticky',
-        x: world.x - 80,
-        y: world.y - 80,
-        w: 160,
-        fill: p.stickyFill,
-        text: '',
-        edit: true,
-      });
+      placeSticky(ctx, world);
       return;
     }
 
     if (!itemId && p.tool.type === 'shape') {
-      p.onCreate({
-        kind: 'shape',
-        shape: p.tool.shape,
-        x: world.x - 70,
-        y: world.y - 70,
-        w: 140,
-        h: 140,
-        fill: 'white',
-        text: '',
-        edit: true,
-      });
+      placeShape(ctx, world, p.tool.shape);
       return;
     }
 
     if (itemId) {
-      const wasSelected = p.selected.has(itemId);
-      if (e.shiftKey) {
-        const next = new Set(p.selected);
-        if (wasSelected) next.delete(itemId);
-        else next.add(itemId);
-        p.onSelect(next);
-        if (wasSelected) return;
-        dragRef.current = {
-          kind: 'move',
-          sx: e.clientX,
-          sy: e.clientY,
-          ids: Array.from(next),
-          clickId: itemId,
-          wasSelected,
-          shift: true,
-          moved: false,
-        };
-        return;
-      }
-      const ids = wasSelected ? Array.from(p.selected) : [itemId];
-      if (!wasSelected) p.onSelect(new Set([itemId]));
-      dragRef.current = {
-        kind: 'move',
-        sx: e.clientX,
-        sy: e.clientY,
-        ids,
-        clickId: itemId,
-        wasSelected,
-        shift: false,
-        moved: false,
-      };
+      const next = startMove(ctx, e, itemId);
+      if (next) dragRef.current = next;
       return;
     }
 
-    dragRef.current = {
-      kind: 'marquee',
-      sx: e.clientX,
-      sy: e.clientY,
-      base: e.shiftKey ? new Set(p.selected) : new Set(),
-      moved: false,
-    };
+    dragRef.current = startMarquee(ctx, e);
   }
 
   function onDoubleClick(e: ReactMouseEvent<HTMLDivElement>) {

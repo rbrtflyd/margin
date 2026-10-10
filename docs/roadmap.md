@@ -9,7 +9,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | ID | Workstream | Depends on | Status |
 | --- | --- | --- | --- |
 | 0A | Save one board at a time | none | done |
-| 0B | Split `Canvas.tsx` into interaction modules | none | open |
+| 0B | Split `Canvas.tsx` into interaction modules | none | done |
 | 0C | Bounds layer and canvas bug fixes | 0B | open |
 | 0D | Item schema v2 | none | open |
 | 0E | Geometry tests and undo coalescing | 0A | open |
@@ -82,10 +82,10 @@ Done when editing one board sends only that board, two tabs can't silently overw
 
 Touches: `components/Canvas.tsx`, plus new files under `components/canvas/`.
 
-- [ ] Give each interaction its own module: pan, select and move, marquee, resize, place, connect, and endpoint drag. Each gets `start`, `move`, `end`, and an optional preview to render.
-- [ ] Keep `Canvas.tsx` as the shell: the view transform, wheel, gesture and pinch handling, and choosing which interaction runs.
-- [ ] Keep the `CanvasApi` surface (`center`, `pointer`, `fit`, `zoomTo`, `rectOf`, `panTo`) unchanged.
-- [ ] Make this a pure refactor. Behavior must not change.
+- [x] Give each interaction its own module: pan, select and move, marquee, resize, place, connect, and endpoint drag. Each gets `start`, `move`, `end`, and an optional preview to render.
+- [x] Keep `Canvas.tsx` as the shell: the view transform, wheel, gesture and pinch handling, and choosing which interaction runs.
+- [x] Keep the `CanvasApi` surface (`center`, `pointer`, `fit`, `zoomTo`, `rectOf`, `panTo`) unchanged.
+- [x] Make this a pure refactor. Behavior must not change.
 
 Done when everything that works today still works: create each kind, select, Shift-select, marquee, move, resize, connect, re-attach connector ends, pan, zoom, pinch, space-to-pan, and double-click to create text.
 
