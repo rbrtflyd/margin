@@ -3,6 +3,7 @@
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
   CircleIcon,
+  Cursor01Icon,
   DiamondIcon,
   LineIcon,
   SquareIcon,
@@ -54,6 +55,20 @@ export default function CanvasToolbar(props: Props) {
       as="nav"
       className="flex items-center gap-0.5 p-1"
       aria-label="Toolbar">
+      <button
+        type="button"
+        className={btn}
+        aria-pressed={props.tool.type === 'select'}
+        title="Pointer (V)"
+        onClick={() => props.onTool({ type: 'select' })}>
+        <HugeiconsIcon
+          icon={Cursor01Icon}
+          size={16}
+          strokeWidth={2}
+        />
+        <span className="max-sm:hidden">Pointer</span>
+        <kbd className={kbd}>V</kbd>
+      </button>
       <button
         type="button"
         className={btn}
