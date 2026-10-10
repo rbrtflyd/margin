@@ -155,12 +155,6 @@ export default function Margin({ user }: { user: User | null }) {
             expectedUpdatedAt: expected,
           });
           networkError.current = false;
-          console.log('saveBoard', result, {
-            texts: b.items.map((i) => i.text),
-            updatedAt: b.updatedAt,
-            expected,
-            gen,
-          });
           if (!result.ok) {
             dirtyGens.current.delete(id);
             if (result.reason === 'conflict') {

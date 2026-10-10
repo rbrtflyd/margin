@@ -64,20 +64,10 @@ export const saveBoard = mutation({
       return { ok: false as const, reason: 'not_found' as const };
     }
     if (doc.updatedAt !== args.expectedUpdatedAt) {
-      console.log('saveBoard conflict', {
-        stored: doc.updatedAt,
-        expected: args.expectedUpdatedAt,
-        items: args.items.length,
-      });
       return { ok: false as const, reason: 'conflict' as const };
     }
     const { id, expectedUpdatedAt: _expected, ...fields } = args;
     await ctx.db.patch(id, fields);
-    console.log('saveBoard ok', {
-      items: args.items.length,
-      updatedAt: args.updatedAt,
-      texts: args.items.map((i) => i.text).filter(Boolean),
-    });
     return { ok: true as const };
   },
 });
