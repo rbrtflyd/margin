@@ -350,7 +350,7 @@ export function alongPath(pts: Pt[], t = 0.5): Pt {
     total += len;
   }
   if (total === 0) return pts[0];
-  let d = total * t;
+  let d = total * Math.min(1, Math.max(0, t));
   for (let i = 1; i < pts.length; i++) {
     const len = lens[i - 1];
     if (d <= len) {
@@ -363,6 +363,118 @@ export function alongPath(pts: Pt[], t = 0.5): Pt {
     d -= len;
   }
   return pts[pts.length - 1];
+}
+
+/** `t` in 0..1 of the closest point on the polyline to `p`. */
+export function nearestT(pts: Pt[], p: Pt): number {
+  if (pts.length < 2) return 0.5;
+  let total = 0;
+  const segs: { a: Pt; b: Pt; len: number }[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const len = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    segs.push({ a: pts[i - 1], b: pts[i], len });
+    total += len;
+  }
+  if (total === 0) return 0.5;
+  let bestD = Infinity;
+  let bestAlong = 0;
+  let acc = 0;
+  for (const s of segs) {
+    const dx = s.b.x - s.a.x;
+    const dy = s.b.y - s.a.y;
+    const u = s.len
+      ? ((p.x - s.a.x) * dx + (p.y - s.a.y) * dy) / (s.len * s.len)
+      : 0;
+    const t = Math.min(1, Math.max(0, u));
+    const q = { x: s.a.x + dx * t, y: s.a.y + dy * t };
+    const d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (d < bestD) {
+      bestD = d;
+      bestAlong = acc + t * s.len;
+    }
+    acc += s.len;
+  }
+  return bestAlong / total;
+}
+
+function inRect(p: Pt, r: Rect) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+
+function hits(a: Pt, b: Pt, r: Rect): number[] {
+  const ts: number[] = [];
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const add = (t: number) => {
+    if (t > 1e-6 && t < 1 - 1e-6) ts.push(t);
+  };
+  if (dx !== 0) {
+    for (const x of [r.x, r.x + r.w]) {
+      const t = (x - a.x) / dx;
+      const y = a.y + t * dy;
+      if (y >= r.y - 1e-6 && y <= r.y + r.h + 1e-6) add(t);
+    }
+  }
+  if (dy !== 0) {
+    for (const y of [r.y, r.y + r.h]) {
+      const t = (y - a.y) / dy;
+      const x = a.x + t * dx;
+      if (x >= r.x - 1e-6 && x <= r.x + r.w + 1e-6) add(t);
+    }
+  }
+  ts.sort((x, y) => x - y);
+  const uniq: number[] = [];
+  for (const t of ts) {
+    if (!uniq.length || Math.abs(uniq[uniq.length - 1] - t) > 1e-6) uniq.push(t);
+  }
+  return uniq;
+}
+
+/** Visible stroke with a break around `gap`. Empty string if the gap covers the path. */
+export function pathDGapped(pts: Pt[], gap: Rect | null): string {
+  if (!gap || pts.length < 2) return pathD(pts);
+  const parts: Pt[][] = [];
+  let cur: Pt[] = [];
+  const push = (p: Pt) => {
+    const last = cur[cur.length - 1];
+    if (!last || last.x !== p.x || last.y !== p.y) cur.push(p);
+  };
+  const flush = () => {
+    if (cur.length >= 2) parts.push(cur);
+    cur = [];
+  };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const ts = [0, ...hits(a, b, gap), 1];
+    for (let j = 0; j < ts.length - 1; j++) {
+      const t0 = ts[j];
+      const t1 = ts[j + 1];
+      const mid = {
+        x: a.x + ((b.x - a.x) * (t0 + t1)) / 2,
+        y: a.y + ((b.y - a.y) * (t0 + t1)) / 2,
+      };
+      if (inRect(mid, gap)) {
+        flush();
+        continue;
+      }
+      const p0 = {
+        x: a.x + (b.x - a.x) * t0,
+        y: a.y + (b.y - a.y) * t0,
+      };
+      const p1 = {
+        x: a.x + (b.x - a.x) * t1,
+        y: a.y + (b.y - a.y) * t1,
+      };
+      const last = cur[cur.length - 1];
+      if (last && (last.x !== p0.x || last.y !== p0.y)) flush();
+      if (!cur.length) push(p0);
+      push(p1);
+    }
+  }
+  flush();
+  if (!parts.length) return '';
+  return parts.map(pathD).join(' ');
 }
 
 export function detachAnchor(

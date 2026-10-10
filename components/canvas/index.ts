@@ -7,6 +7,7 @@ import { moveConnect, endConnect } from './connect';
 import { moveResize, endResize } from './resize';
 import { moveEndpoint, endEndpoint } from './endpoint';
 import { moveBend, endBend } from './bend';
+import { moveLabel, endLabel } from './label';
 
 export function moveDrag(ctx: InteractionCtx, d: Drag, e: PointerEvent) {
   switch (d.kind) {
@@ -26,6 +27,8 @@ export function moveDrag(ctx: InteractionCtx, d: Drag, e: PointerEvent) {
       return moveEndpoint(ctx, d, e);
     case 'bend':
       return moveBend(ctx, d, e);
+    case 'label':
+      return moveLabel(ctx, d, e);
   }
 }
 
@@ -47,5 +50,7 @@ export function endDrag(ctx: InteractionCtx, d: Drag, e: PointerEvent) {
       return endEndpoint(ctx, d, e);
     case 'bend':
       return endBend(ctx, d, e);
+    case 'label':
+      return endLabel(ctx, d, e);
   }
 }

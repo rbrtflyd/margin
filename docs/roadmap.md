@@ -22,7 +22,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 2C | Text formatting and sticky sizing | 0D | done |
 | 3A | Connection dots and quick-create | 0B, 0C | done |
 | 3B | Arrowheads, curves, auto sides, elbow bends | 0D | done |
-| 3C | Connector label editing | 3B | open |
+| 3C | Connector label editing | 3B | done |
 | 3D | Assistant reads connectors | none | open |
 | 4A | Image storage pipeline | 0A, 0D | open |
 | 4B | Image items on the canvas | 4A | open |
@@ -200,9 +200,9 @@ Diamonds and triangles are cut out with a CSS `clipPath` today, and a clip path 
 
 ### 3C. Connector label editing
 
-- [ ] Double-clicking a connector adds or edits its label.
-- [ ] Dragging a label moves it along the path, stored in `labelAt`.
-- [ ] The line breaks around the label so the text stays readable.
+- [x] Double-clicking a connector adds or edits its label.
+- [x] Dragging a label moves it along the path, stored in `labelAt`.
+- [x] The line breaks around the label so the text stays readable.
 
 ### 3D. Assistant reads connectors
 

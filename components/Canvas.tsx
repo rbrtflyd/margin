@@ -39,6 +39,7 @@ import {
   itemConnectorPoints,
   outPoint,
   pathD,
+  pathDGapped,
   PLUS_OUT,
   resolveEnds,
   SIDES,
@@ -64,6 +65,7 @@ import { startResize } from './canvas/resize';
 import { placeShape, placeSticky, startPlace } from './canvas/place';
 import { startConnect, startConnectFrom } from './canvas/connect';
 import { startBend } from './canvas/bend';
+import { startLabel } from './canvas/label';
 import { startEndpoint } from './canvas/endpoint';
 import { endDrag, moveDrag } from './canvas/index';
 
@@ -201,6 +203,8 @@ export default function Canvas(props: Props) {
   } | null>(null);
 
   const dragRef = useRef<Drag | null>(null);
+  const labelSize = useRef(new Map<string, { w: number; h: number }>());
+  const [, setLabelTick] = useState(0);
   const els = useRef(new Map<string, Element>());
   const [, setMeasureTick] = useState(0);
   const roRef = useRef<ResizeObserver | null>(null);
@@ -231,6 +235,20 @@ export default function Canvas(props: Props) {
     } else {
       els.current.delete(id);
       forgetSize(id);
+    }
+  }
+
+  function watchLabel(id: string, el: HTMLDivElement | null) {
+    if (!el) {
+      labelSize.current.delete(id);
+      return;
+    }
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const prev = labelSize.current.get(id);
+    if (!prev || prev.w !== w || prev.h !== h) {
+      labelSize.current.set(id, { w, h });
+      queueMicrotask(() => setLabelTick((n) => n + 1));
     }
   }
   const pointerWorld = useRef<Pt | null>(null);
@@ -383,7 +401,10 @@ export default function Canvas(props: Props) {
         if (!it) return null;
         if (itemKind(it) === 'connector') {
           const rects = liveRects(propsRef.current.items, null, null);
-          const mid = alongPath(itemConnectorPoints(it, rects));
+          const mid = alongPath(
+            itemConnectorPoints(it, rects),
+            it.labelAt ?? 0.5,
+          );
           return { x: mid.x, y: mid.y, w: 0, h: 0 };
         }
         return boundsOf(it);
@@ -695,6 +716,13 @@ export default function Canvas(props: Props) {
       return;
     }
 
+    const labelEl = target.closest<HTMLElement>('[data-label]');
+    if (labelEl && itemId) {
+      p.onSelect(new Set([itemId]));
+      dragRef.current = startLabel(itemId);
+      return;
+    }
+
     if (p.tool.type === 'connector') {
       dragRef.current = startConnect(ctx, world);
       return;
@@ -786,7 +814,10 @@ export default function Canvas(props: Props) {
     } else if (shown.size === 1) {
       const sole = selectedItems[0];
       if (sole && itemKind(sole) === 'connector') {
-        const mid = alongPath(itemConnectorPoints(sole, rects));
+        const mid = alongPath(
+          itemConnectorPoints(sole, rects),
+          sole.labelAt ?? 0.5,
+        );
         barLeft = mid.x * view.k + view.x;
         barTop = mid.y * view.k + view.y - 10;
       }
@@ -833,7 +864,7 @@ export default function Canvas(props: Props) {
       it.route ?? 'straight',
       it.bend,
     );
-    return { pts, start, end, mid: alongPath(pts) };
+    return { pts, start, end, mid: alongPath(pts, it.labelAt ?? 0.5) };
   }
 
   const draftPts = (() => {
@@ -877,7 +908,7 @@ export default function Canvas(props: Props) {
           height={1}
           style={{ overflow: 'visible', pointerEvents: 'none' }}>
           {lines.map((it) => {
-            const { pts, start, end } = geom(it);
+            const { pts, start, end, mid } = geom(it);
             const selected = shown.has(it.id);
             const d = pathD(pts);
             const last = pts[pts.length - 1];
@@ -887,6 +918,16 @@ export default function Canvas(props: Props) {
             const color = selected ? '#0369a1' : '#52525b';
             const midSeg =
               (it.route ?? 'straight') === 'elbow' ? elbowMid(pts) : null;
+            const size = labelSize.current.get(it.id);
+            const gap =
+              size && (it.text || props.editingId === it.id)
+                ? {
+                    x: mid.x - size.w / 2,
+                    y: mid.y - size.h / 2,
+                    w: size.w,
+                    h: size.h,
+                  }
+                : null;
             return (
               <g
                 key={it.id}
@@ -913,7 +954,7 @@ export default function Canvas(props: Props) {
                   />
                 )}
                 <path
-                  d={d}
+                  d={pathDGapped(pts, gap)}
                   fill="none"
                   stroke={color}
                   strokeWidth={1.5}
@@ -987,7 +1028,12 @@ export default function Canvas(props: Props) {
             <div
               key={it.id + '-label'}
               data-item={it.id}
-              className="absolute z-[1] -translate-x-1/2 -translate-y-1/2 bg-white px-1.5 py-0.5 text-xs text-zinc-600"
+              {...(!editing ? { 'data-label': 'label' } : {})}
+              ref={(el) => watchLabel(it.id, el)}
+              className={
+                'absolute z-[1] -translate-x-1/2 -translate-y-1/2 px-1.5 py-0.5 text-xs text-zinc-600' +
+                (editing ? '' : ' cursor-grab')
+              }
               style={{ left: mid.x, top: mid.y }}>
               {editing ? (
                 <Editor

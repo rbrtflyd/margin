@@ -119,6 +119,11 @@ export type Drag =
       wy: number;
       origin: number;
       moved: boolean;
+    }
+  | {
+      kind: 'label';
+      id: string;
+      moved: boolean;
     };
 
 export type CanvasProps = {

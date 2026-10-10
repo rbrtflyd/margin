@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   SNAP,
+  alongPath,
   connectorPoints,
   detachAnchor,
   elbowMid,
   elbowPoints,
+  nearestT,
   oppositeSide,
+  pathD,
+  pathDGapped,
   QUICK_GAP,
   quickCreateOrigin,
   resolveEnds,
@@ -133,6 +137,50 @@ describe('connectorPoints', () => {
     expect(pts.length).toBeGreaterThan(2);
     expect(pts[0]).toEqual({ x: 0, y: 0 });
     expect(pts[pts.length - 1]).toEqual({ x: 100, y: 40 });
+  });
+});
+
+describe('alongPath', () => {
+  const line = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+  ];
+
+  it('returns endpoints and the midpoint', () => {
+    expect(alongPath(line, 0)).toEqual({ x: 0, y: 0 });
+    expect(alongPath(line, 0.5)).toEqual({ x: 50, y: 0 });
+    expect(alongPath(line, 1)).toEqual({ x: 100, y: 0 });
+  });
+});
+
+describe('nearestT', () => {
+  const line = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+  ];
+
+  it('maps a point on the path to t', () => {
+    expect(nearestT(line, { x: 0, y: 0 })).toBe(0);
+    expect(nearestT(line, { x: 75, y: 8 })).toBeCloseTo(0.75);
+    expect(nearestT(line, { x: 100, y: 0 })).toBe(1);
+  });
+});
+
+describe('pathDGapped', () => {
+  const line = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+  ];
+
+  it('matches pathD when there is no gap', () => {
+    expect(pathDGapped(line, null)).toBe(pathD(line));
+  });
+
+  it('splits the stroke around a label box', () => {
+    const d = pathDGapped(line, { x: 40, y: -8, w: 20, h: 16 });
+    expect(d.startsWith('M')).toBe(true);
+    expect(d.includes(' M')).toBe(true);
+    expect(d).not.toBe(pathD(line));
   });
 });
 
