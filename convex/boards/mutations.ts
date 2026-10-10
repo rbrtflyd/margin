@@ -51,26 +51,34 @@ export const create = mutation({
   },
 });
 
-export const save = mutation({
+export const saveBoard = mutation({
   args: {
-    boards: v.array(
-      v.object({
-        id: v.id('boards'),
-        ...boardFieldsValidator.fields,
-      }),
-    ),
-    currentId: v.id('boards'),
+    id: v.id('boards'),
+    ...boardFieldsValidator.fields,
+    expectedUpdatedAt: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
-    for (const b of args.boards) {
-      const doc = await ctx.db.get(b.id);
-      if (!doc || doc.userId !== userId) continue;
-      const { id: _id, ...fields } = b;
-      await ctx.db.patch(b.id, fields);
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.userId !== userId) {
+      return { ok: false as const, reason: 'not_found' as const };
     }
-    const current = await ctx.db.get(args.currentId);
-    if (current && current.userId === userId) await setCurrent(ctx, userId, args.currentId);
+    if (doc.updatedAt !== args.expectedUpdatedAt) {
+      return { ok: false as const, reason: 'conflict' as const };
+    }
+    const { id, expectedUpdatedAt: _expected, ...fields } = args;
+    await ctx.db.patch(id, fields);
+    return { ok: true as const };
+  },
+});
+
+export const setCurrentBoard = mutation({
+  args: { id: v.id('boards') },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const doc = await ctx.db.get(args.id);
+    if (!doc || doc.userId !== userId) return;
+    await setCurrent(ctx, userId, args.id);
   },
 });
 

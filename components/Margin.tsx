@@ -21,9 +21,11 @@ import { compactItem, itemKind, type Rect } from '@/lib/items';
 import { detachAnchor, isAttach, nodeRects } from '@/lib/connectors';
 import Canvas from './Canvas';
 import type { CanvasApi, CreateDraft, Pt } from './Canvas';
+import { toast } from '@/components/ui/toast';
 import AskPanel from './AskPanel';
 import BoardSwitcher from './BoardSwitcher';
 import CanvasToolbar from './CanvasToolbar';
+import SaveStatus, { type SaveStatusKind } from './SaveStatus';
 import UserMenu from './UserMenu';
 
 type History = { past: Item[][]; future: Item[][] };
@@ -65,9 +67,133 @@ export default function Margin({ user }: { user: User | null }) {
     isAuthenticated ? {} : 'skip',
   );
   const seed = useMutation(api.boards.mutations.seed);
-  const save = useMutation(api.boards.mutations.save);
+  const saveBoard = useMutation(api.boards.mutations.saveBoard);
+  const setCurrentRemote = useMutation(api.boards.mutations.setCurrentBoard);
   const createRemote = useMutation(api.boards.mutations.create);
   const removeRemote = useMutation(api.boards.mutations.remove);
+
+  const dirtyGens = useRef(new Map<string, number>());
+  const conflicted = useRef(new Set<string>());
+  const syncedAt = useRef(new Map<string, string>());
+  const inflight = useRef(0);
+  const flushing = useRef(false);
+  const networkError = useRef(false);
+  const online = useRef(true);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatusKind>('saved');
+
+  const refreshSaveStatus = useCallback(() => {
+    if (!online.current || networkError.current) {
+      setSaveStatus('offline');
+      return;
+    }
+    let pending = false;
+    for (const id of dirtyGens.current.keys()) {
+      if (!conflicted.current.has(id)) {
+        pending = true;
+        break;
+      }
+    }
+    setSaveStatus(inflight.current > 0 || pending ? 'saving' : 'saved');
+  }, []);
+
+  const markDirty = (id: string) => {
+    dirtyGens.current.set(id, (dirtyGens.current.get(id) ?? 0) + 1);
+  };
+
+  const flushSavesRef = useRef<() => Promise<void>>(async () => {});
+
+  const scheduleSave = useCallback(() => {
+    refreshSaveStatus();
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      void flushSavesRef.current();
+    }, 250);
+  }, [refreshSaveStatus]);
+
+  flushSavesRef.current = async () => {
+    if (flushing.current) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const s = storeRef.current;
+    if (!s || !online.current) {
+      refreshSaveStatus();
+      return;
+    }
+    const ids = [...dirtyGens.current.keys()].filter(
+      (id) => !conflicted.current.has(id),
+    );
+    if (!ids.length) {
+      refreshSaveStatus();
+      return;
+    }
+    flushing.current = true;
+    try {
+      for (const id of ids) {
+        if (conflicted.current.has(id) || !online.current) continue;
+        const b = storeRef.current?.boards.find((x) => x.id === id);
+        if (!b) {
+          dirtyGens.current.delete(id);
+          continue;
+        }
+        const gen = dirtyGens.current.get(id);
+        const expected = syncedAt.current.get(id) ?? b.updatedAt;
+        inflight.current++;
+        refreshSaveStatus();
+        try {
+          const result = await saveBoard({
+            id: id as Id<'boards'>,
+            name: b.name,
+            items: b.items.map(compactItem),
+            view: b.view,
+            asks: b.asks,
+            createdAt: b.createdAt,
+            updatedAt: b.updatedAt,
+            expectedUpdatedAt: expected,
+          });
+          networkError.current = false;
+          if (!result.ok) {
+            dirtyGens.current.delete(id);
+            if (result.reason === 'conflict') {
+              conflicted.current.add(id);
+              toast.add({
+                type: 'warning',
+                title: 'This board was edited in another tab',
+                description:
+                  'Reload to see those changes. Your edits here are still on this page.',
+                actionProps: {
+                  children: 'Reload',
+                  onClick: () => location.reload(),
+                },
+              });
+            }
+          } else {
+            syncedAt.current.set(id, b.updatedAt);
+            if (dirtyGens.current.get(id) === gen) dirtyGens.current.delete(id);
+          }
+        } catch {
+          networkError.current = true;
+          online.current = typeof navigator === 'undefined' ? false : navigator.onLine;
+          break;
+        } finally {
+          inflight.current--;
+        }
+      }
+    } finally {
+      flushing.current = false;
+      refreshSaveStatus();
+      if (
+        !networkError.current &&
+        online.current &&
+        [...dirtyGens.current.keys()].some((id) => !conflicted.current.has(id))
+      ) {
+        scheduleSave();
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated || remote === undefined || hydrated.current) return;
@@ -77,6 +203,7 @@ export default function Margin({ user }: { user: User | null }) {
       if (cancelled || !next) return;
       storeRef.current = next;
       setStore(next);
+      for (const b of next.boards) syncedAt.current.set(b.id, b.updatedAt);
       hydrated.current = true;
     })();
     return () => {
@@ -86,22 +213,33 @@ export default function Margin({ user }: { user: User | null }) {
 
   useEffect(() => {
     if (!store || !hydrated.current) return;
-    const t = setTimeout(() => {
-      void save({
-        boards: store.boards.map((b) => ({
-          id: b.id as Id<'boards'>,
-          name: b.name,
-          items: b.items.map(compactItem),
-          view: b.view,
-          asks: b.asks,
-          createdAt: b.createdAt,
-          updatedAt: b.updatedAt,
-        })),
-        currentId: store.currentId as Id<'boards'>,
-      });
-    }, 250);
-    return () => clearTimeout(t);
-  }, [store, save]);
+    scheduleSave();
+  }, [store, scheduleSave]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      online.current = true;
+      networkError.current = false;
+      refreshSaveStatus();
+      void flushSavesRef.current();
+    };
+    const onOffline = () => {
+      online.current = false;
+      refreshSaveStatus();
+    };
+    const onVisibility = () => {
+      if (document.hidden) void flushSavesRef.current();
+    };
+    online.current = navigator.onLine;
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [refreshSaveStatus]);
 
   // All writes go through here so consecutive updates in one event see each other.
   const update = useCallback((fn: (s: Store) => Store) => {
@@ -140,6 +278,7 @@ export default function Margin({ user }: { user: User | null }) {
     const next = producer(b.items);
     if (next === b.items) return;
     if (record) pushHistory(b.id, b.items);
+    markDirty(b.id);
     update((s) => ({
       ...s,
       boards: s.boards.map((x) =>
@@ -149,9 +288,20 @@ export default function Margin({ user }: { user: User | null }) {
   };
 
   const patchBoard = (id: string, patch: Partial<Board>) => {
+    const keys = Object.keys(patch).filter((k) => k !== 'updatedAt');
+    const viewOnly = keys.length === 1 && keys[0] === 'view';
+    markDirty(id);
     update((s) => ({
       ...s,
-      boards: s.boards.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      boards: s.boards.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              ...patch,
+              ...(viewOnly ? {} : { updatedAt: patch.updatedAt ?? nowISO() }),
+            }
+          : x,
+      ),
     }));
   };
 
@@ -391,12 +541,14 @@ export default function Margin({ user }: { user: User | null }) {
     setSelected(new Set());
     setEditingId(null);
     update((s) => ({ ...s, currentId: id }));
+    void setCurrentRemote({ id: id as Id<'boards'> });
   };
 
   const createBoard = () => {
     void createRemote({}).then((b) => {
       setSelected(new Set());
       setEditingId(null);
+      syncedAt.current.set(b.id, b.updatedAt);
       update((s) => ({ ...s, boards: [...s.boards, b], currentId: b.id }));
       setRenameOnOpen(true);
     });
@@ -404,6 +556,9 @@ export default function Margin({ user }: { user: User | null }) {
 
   const deleteBoard = (id: string) => {
     histories.current.delete(id);
+    dirtyGens.current.delete(id);
+    conflicted.current.delete(id);
+    syncedAt.current.delete(id);
     update((s) => {
       const boards = s.boards.filter((b) => b.id !== id);
       if (!boards.length) return s;
@@ -447,6 +602,7 @@ export default function Margin({ user }: { user: User | null }) {
       view: result.view,
       asks: result.asks,
     }).then((b) => {
+      syncedAt.current.set(b.id, b.updatedAt);
       update((s) => ({ ...s, boards: [...s.boards, b], currentId: b.id }));
       setSelected(new Set());
     });
@@ -645,6 +801,8 @@ export default function Margin({ user }: { user: User | null }) {
         onExport={exportBoard}
         onImport={importBoard}
       />
+
+      <SaveStatus status={saveStatus} />
 
       <UserMenu user={user} />
 

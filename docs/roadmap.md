@@ -8,7 +8,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 
 | ID | Workstream | Depends on | Status |
 | --- | --- | --- | --- |
-| 0A | Save one board at a time | none | open |
+| 0A | Save one board at a time | none | done |
 | 0B | Split `Canvas.tsx` into interaction modules | none | open |
 | 0C | Bounds layer and canvas bug fixes | 0B | open |
 | 0D | Item schema v2 | none | open |
@@ -68,11 +68,11 @@ Today every edit, after a 250ms debounce, sends **every** board to `boards.mutat
 
 Touches: `components/Margin.tsx`, `convex/boards/mutations.ts`.
 
-- [ ] Add a `saveBoard({ id, name, items, view, asks, updatedAt })` mutation, and a separate small mutation to set the current board.
-- [ ] Track which boards changed, and debounce-save only those.
-- [ ] Before writing, check `updatedAt` against the stored document. If another tab has written newer data, don't overwrite it; surface the conflict (a toast is enough).
-- [ ] Add a small floating save status: "Saving", "Saved", or "Offline".
-- [ ] Remove the old whole-store `save`, or keep it only for import.
+- [x] Add a `saveBoard({ id, name, items, view, asks, updatedAt })` mutation, and a separate small mutation to set the current board.
+- [x] Track which boards changed, and debounce-save only those.
+- [x] Before writing, check `updatedAt` against the stored document. If another tab has written newer data, don't overwrite it; surface the conflict (a toast is enough).
+- [x] Add a small floating save status: "Saving", "Saved", or "Offline".
+- [x] Remove the old whole-store `save`, or keep it only for import.
 
 Done when editing one board sends only that board, two tabs can't silently overwrite each other, and reloading always restores the latest edit.
 
