@@ -8,16 +8,23 @@ import type {
   AskTurn,
   Author,
   Board,
+  Fill,
+  Handle,
   Item,
   Store,
+  Tool,
   User,
   View,
 } from '@/lib/types';
 import { exportJSON, nowISO, parseImport, uid } from '@/lib/store';
+import { compactItem, itemKind, type Rect } from '@/lib/items';
+import { detachAnchor, isAttach, nodeRects } from '@/lib/connectors';
 import Canvas from './Canvas';
-import type { CanvasApi, Pt } from './Canvas';
+import type { CanvasApi, CreateDraft, Pt } from './Canvas';
 import AskPanel from './AskPanel';
-import BoardsMenu from './BoardsMenu';
+import BoardSwitcher from './BoardSwitcher';
+import CanvasToolbar from './CanvasToolbar';
+import UserMenu from './UserMenu';
 
 type History = { past: Item[][]; future: Item[][] };
 const MAX_HISTORY = 100;
@@ -39,10 +46,11 @@ export default function Margin({ user }: { user: User | null }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
-  const [boardsOpen, setBoardsOpen] = useState(false);
   const [renameOnOpen, setRenameOnOpen] = useState(false);
   const [flash, setFlash] = useState<string[]>([]);
   const [zoom, setZoom] = useState(1);
+  const [tool, setTool] = useState<Tool>({ type: 'select' });
+  const [stickyFill, setStickyFill] = useState<Fill>('amber');
   const canvasApi = useRef<CanvasApi | null>(null);
   const histories = useRef(new Map<string, History>());
   const editSnapshot = useRef<{
@@ -83,7 +91,7 @@ export default function Margin({ user }: { user: User | null }) {
         boards: store.boards.map((b) => ({
           id: b.id as Id<'boards'>,
           name: b.name,
-          items: b.items,
+          items: b.items.map(compactItem),
           view: b.view,
           asks: b.asks,
           createdAt: b.createdAt,
@@ -154,20 +162,31 @@ export default function Margin({ user }: { user: User | null }) {
 
   // ----- items -----
 
-  const createAt = (p: Pt, text = '', by: Author = 'me') => {
+  const createItem = (draft: CreateDraft) => {
     const b = currentBoard();
     if (!b) return '';
     const t = nowISO();
-    const item: Item = {
-      id: uid('t_'),
-      x: Math.round(p.x),
-      y: Math.round(p.y),
-      text,
-      by,
+    const kind = draft.kind ?? 'text';
+    const item = compactItem({
+      id: uid(kind === 'text' ? 't_' : kind[0] + '_'),
+      x: Math.round(draft.x),
+      y: Math.round(draft.y),
+      text: draft.text ?? '',
+      by: draft.by ?? 'me',
       createdAt: t,
       editedAt: t,
-    };
-    if (!text) {
+      kind: kind === 'text' ? undefined : kind,
+      w: draft.w,
+      h: draft.h,
+      shape: draft.shape,
+      fill: draft.fill,
+      route: draft.route,
+      start: draft.start,
+      end: draft.end,
+    });
+    if (item.fill && kind === 'sticky') setStickyFill(item.fill);
+    const startEdit = draft.edit === true || (draft.edit !== false && kind !== 'connector' && !item.text);
+    if (startEdit) {
       editSnapshot.current = { id: item.id, items: b.items, isNew: true };
       commitItems((items) => [...items, item], false);
       setSelected(new Set([item.id]));
@@ -178,6 +197,9 @@ export default function Margin({ user }: { user: User | null }) {
     }
     return item.id;
   };
+
+  const createAt = (p: Pt, text = '', by: Author = 'me') =>
+    createItem({ kind: 'text', x: p.x, y: p.y, text, by, edit: !text });
 
   const startEdit = (id: string) => {
     const b = currentBoard();
@@ -199,7 +221,7 @@ export default function Margin({ user }: { user: User | null }) {
     const cur = b.items.find((i) => i.id === id);
     if (!cur) return;
     const text = raw.replace(/ /g, ' ').replace(/^\n+/, '').replace(/\s+$/, '');
-    if (!text.trim()) {
+    if (!text.trim() && itemKind(cur) === 'text') {
       // An emptied box goes away. A brand-new empty box leaves no trace in undo.
       commitItems(
         (items) => items.filter((i) => i.id !== id),
@@ -210,6 +232,19 @@ export default function Margin({ user }: { user: User | null }) {
         n.delete(id);
         return n;
       });
+      return;
+    }
+    if (!text.trim()) {
+      if (snap && snap.isNew) pushHistory(b.id, snap.items);
+      if (text !== cur.text) {
+        commitItems(
+          (items) =>
+            items.map((i) =>
+              i.id === id ? { ...i, text: '', editedAt: nowISO() } : i,
+            ),
+          !(snap && snap.isNew),
+        );
+      }
       return;
     }
     if (text === cur.text) return;
@@ -226,18 +261,71 @@ export default function Margin({ user }: { user: User | null }) {
   const moveItems = (ids: string[], dx: number, dy: number) => {
     const set = new Set(ids);
     commitItems((items) =>
-      items.map((i) =>
-        set.has(i.id)
-          ? { ...i, x: Math.round(i.x + dx), y: Math.round(i.y + dy) }
-          : i,
-      ),
+      items.map((i) => {
+        if (!set.has(i.id)) return i;
+        if (itemKind(i) === 'connector') {
+          return {
+            ...i,
+            start:
+              i.start && !isAttach(i.start)
+                ? { x: Math.round(i.start.x + dx), y: Math.round(i.start.y + dy) }
+                : i.start,
+            end:
+              i.end && !isAttach(i.end)
+                ? { x: Math.round(i.end.x + dx), y: Math.round(i.end.y + dy) }
+                : i.end,
+          };
+        }
+        return { ...i, x: Math.round(i.x + dx), y: Math.round(i.y + dy) };
+      }),
+    );
+  };
+
+  const resizeItem = (id: string, box: Rect, handle: Handle) => {
+    commitItems((items) =>
+      items.map((i) => {
+        if (i.id !== id) return i;
+        const x = Math.round(box.x);
+        const y = Math.round(box.y);
+        const w = Math.round(box.w);
+        const h = Math.round(box.h);
+        const kind = itemKind(i);
+        if (kind === 'shape') return { ...i, x, y, w, h };
+        if (kind === 'sticky') {
+          return handle.length === 2 ? { ...i, x, y, w, h } : { ...i, x, y, w };
+        }
+        return { ...i, x, w };
+      }),
+    );
+  };
+
+  const patchItem = (id: string, patch: Partial<Item>) => {
+    commitItems((items) =>
+      items.map((i) => {
+        if (i.id !== id) return i;
+        const next = compactItem({ ...i, ...patch, editedAt: nowISO() });
+        if (next.fill && itemKind(next) === 'sticky') setStickyFill(next.fill);
+        return next;
+      }),
     );
   };
 
   const deleteSelected = () => {
     const sel = selectedRef.current;
     if (!sel.size) return;
-    commitItems((items) => items.filter((i) => !sel.has(i.id)));
+    commitItems((items) => {
+      const rects = nodeRects(items);
+      return items
+        .filter((i) => !sel.has(i.id))
+        .map((i) => {
+          if (itemKind(i) !== 'connector') return i;
+          return compactItem({
+            ...i,
+            start: detachAnchor(i.start, sel, rects),
+            end: detachAnchor(i.end, sel, rects),
+          });
+        });
+    });
     setSelected(new Set());
   };
 
@@ -385,8 +473,10 @@ export default function Margin({ user }: { user: User | null }) {
     dropPoint,
     startEdit,
   };
-  const panelsRef = useRef({ askOpen, boardsOpen });
-  panelsRef.current = { askOpen, boardsOpen };
+  const askOpenRef = useRef(askOpen);
+  askOpenRef.current = askOpen;
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -394,15 +484,15 @@ export default function Margin({ user }: { user: User | null }) {
       const key = e.key.toLowerCase();
       if (mod && key === 'k') {
         e.preventDefault();
-        setBoardsOpen(false);
         setAskOpen((o) => !o);
         return;
       }
       if (isEditable(e.target) || e.defaultPrevented) return;
       const a = actions.current;
       if (e.key === 'Escape') {
-        if (panelsRef.current.boardsOpen) setBoardsOpen(false);
-        else if (panelsRef.current.askOpen) setAskOpen(false);
+        if (askOpenRef.current) setAskOpen(false);
+        else if (toolRef.current.type !== 'select')
+          setTool({ type: 'select' });
         else setSelected(new Set());
         return;
       }
@@ -427,10 +517,27 @@ export default function Margin({ user }: { user: User | null }) {
       if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
         a.deleteSelected();
+      } else if (key === 'v') {
+        e.preventDefault();
+        setTool({ type: 'select' });
       } else if (key === 't') {
         e.preventDefault();
-        const p = a.dropPoint();
-        a.createAt({ x: p.x - 8, y: p.y - 14 });
+        setTool({ type: 'text' });
+      } else if (key === 's') {
+        e.preventDefault();
+        setTool({ type: 'sticky' });
+      } else if (key === 'r') {
+        e.preventDefault();
+        setTool({ type: 'shape', shape: 'rect' });
+      } else if (key === 'o') {
+        e.preventDefault();
+        setTool({ type: 'shape', shape: 'ellipse' });
+      } else if (key === 'l') {
+        e.preventDefault();
+        setTool({ type: 'connector', route: 'straight' });
+      } else if (key === 'x') {
+        e.preventDefault();
+        setTool({ type: 'connector', route: 'elbow' });
       } else if (e.key === '/') {
         e.preventDefault();
         setAskOpen(true);
@@ -498,9 +605,13 @@ export default function Margin({ user }: { user: User | null }) {
         editingId={editingId}
         flash={flash}
         apiRef={canvasApi}
+        tool={tool}
+        stickyFill={stickyFill}
         onSelect={setSelected}
         onMove={moveItems}
-        onCreateAt={(p) => createAt(p)}
+        onCreate={createItem}
+        onResize={resizeItem}
+        onPatch={patchItem}
         onEditStart={startEdit}
         onEditCommit={commitEdit}
         onViewChange={(v: View) => patchBoard(board.id, { view: v })}
@@ -511,7 +622,7 @@ export default function Margin({ user }: { user: User | null }) {
         <div
           className="pointer-events-none fixed top-[42%] left-1/2 w-full -translate-x-1/2 -translate-y-1/2 px-4 text-center"
           aria-hidden="true">
-          <p className="m-0 font-serif text-[22px] leading-snug font-normal text-zinc-500 italic">
+          <p className="m-0  text-[22px] leading-snug font-normal text-zinc-500 italic">
             Double-click anywhere to write.
           </p>
           <p className="mt-2 font-mono text-xs font-normal text-zinc-400">
@@ -520,110 +631,42 @@ export default function Margin({ user }: { user: User | null }) {
         </div>
       )}
 
-      <nav
-        className="fixed bottom-[calc(16px+env(safe-area-inset-bottom,0px))] left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-0.5 rounded-xl border border-stone-100 bg-white/80 p-1 shadow-xl backdrop-blur-md"
-        aria-label="Toolbar">
-        <button
-          type="button"
-          className="inline-flex max-w-[220px] min-w-0 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] font-semibold whitespace-nowrap hover:bg-zinc-900/10 aria-expanded:bg-zinc-900 aria-expanded:text-stone-100 max-sm:px-2"
-          data-boards-toggle
-          aria-expanded={boardsOpen}
-          onClick={() => {
-            setRenameOnOpen(false);
-            setBoardsOpen((o) => !o);
-          }}>
-          <span className="truncate">{board.name}</span>
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            aria-hidden="true">
-            <path
-              d="M2 4l3 3 3-3"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-          </svg>
-        </button>
-        <span className="mx-1 h-5 w-px shrink-0 bg-stone-100" />
-        <button
-          type="button"
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 max-sm:px-2"
-          title="New text (T)"
-          onClick={() => {
-            const c = canvasApi.current
-              ? canvasApi.current.center()
-              : { x: 0, y: 0 };
-            createAt({ x: c.x - 120, y: c.y - 14 });
-          }}>
-          Text{' '}
-          <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">
-            T
-          </kbd>
-        </button>
-        <button
-          type="button"
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100 aria-pressed:[&_kbd]:text-current aria-pressed:[&_kbd]:opacity-70 max-sm:px-2"
-          aria-pressed={askOpen}
-          title={'Ask (⌘K)'}
-          onClick={() => setAskOpen((o) => !o)}>
-          Ask{' '}
-          <kbd className="font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden">
-            &#8984;K
-          </kbd>
-        </button>
-        <span className="mx-1 h-5 w-px shrink-0 bg-stone-100" />
-        <button
-          type="button"
-          className="inline-flex min-w-[54px] cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-2.5 py-1.5 font-mono text-xs font-medium whitespace-nowrap text-zinc-500 tabular-nums hover:bg-zinc-900/10 max-sm:px-2"
-          title="Zoom to fit (Shift+1)"
-          onClick={() => canvasApi.current?.fit()}>
-          {Math.round(zoom * 100)}%
-        </button>
-      </nav>
+      <BoardSwitcher
+        boards={store.boards}
+        currentId={board.id}
+        startRenaming={renameOnOpen}
+        onSwitch={switchBoard}
+        onCreate={createBoard}
+        onRename={(id, name) => {
+          patchBoard(id, { name, updatedAt: nowISO() });
+          setRenameOnOpen(false);
+        }}
+        onDelete={deleteBoard}
+        onExport={exportBoard}
+        onImport={importBoard}
+      />
 
-      {boardsOpen && (
-        <BoardsMenu
-          boards={store.boards}
-          currentId={board.id}
-          user={user}
-          startRenaming={renameOnOpen}
-          onSwitch={(id) => {
-            switchBoard(id);
-            setBoardsOpen(false);
-          }}
-          onCreate={createBoard}
-          onRename={(id, name) => {
-            patchBoard(id, { name, updatedAt: nowISO() });
-            setRenameOnOpen(false);
-          }}
-          onDelete={(id) => {
-            deleteBoard(id);
-            setBoardsOpen(false);
-          }}
-          onExport={exportBoard}
-          onImport={(text) => {
-            const err = importBoard(text);
-            if (!err) setBoardsOpen(false);
-            return err;
-          }}
-          onClose={() => setBoardsOpen(false)}
-        />
-      )}
+      <UserMenu user={user} />
 
-      {askOpen && (
-        <AskPanel
-          key={`ask-${board.id}`}
-          boardName={board.name}
-          items={board.items}
-          selectedIds={Array.from(selected)}
-          turns={board.asks}
-          onTurns={(turns: AskTurn[]) => patchBoard(board.id, { asks: turns })}
-          onPut={putOnCanvas}
-          onClose={() => setAskOpen(false)}
-        />
-      )}
+      <CanvasToolbar
+        zoom={zoom}
+        askOpen={askOpen}
+        tool={tool}
+        onTool={setTool}
+        onAsk={() => setAskOpen((o) => !o)}
+        onFit={() => canvasApi.current?.fit()}
+      />
+
+      <AskPanel
+        key={`ask-${board.id}`}
+        boardName={board.name}
+        items={board.items}
+        selectedIds={Array.from(selected)}
+        turns={board.asks}
+        onTurns={(turns: AskTurn[]) => patchBoard(board.id, { asks: turns })}
+        onPut={putOnCanvas}
+        onClose={() => setAskOpen(false)}
+      />
     </div>
   );
 }

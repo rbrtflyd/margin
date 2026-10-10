@@ -3,7 +3,11 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isTextUIPart, type UIMessage } from 'ai';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type {
+  FormEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react';
 import type { AskTurn, Item } from '@/lib/types';
 import { nowISO } from '@/lib/store';
 import {
@@ -44,7 +48,10 @@ function readPass(): string {
 }
 
 function textOf(m: AskMessage): string {
-  return m.parts.filter(isTextUIPart).map((p) => p.text).join('');
+  return m.parts
+    .filter(isTextUIPart)
+    .map((p) => p.text)
+    .join('');
 }
 
 function turnsToMessages(turns: AskTurn[]): AskMessage[] {
@@ -75,7 +82,11 @@ function dropLastTurn(messages: AskMessage[]): AskMessage[] {
   return next;
 }
 
-function messagesToTurns(messages: AskMessage[], lastStatus: AskTurn['status'], fallbackScope: number): AskTurn[] {
+function messagesToTurns(
+  messages: AskMessage[],
+  lastStatus: AskTurn['status'],
+  fallbackScope: number,
+): AskTurn[] {
   const turns: AskTurn[] = [];
   let pending: AskMessage | undefined;
   for (const m of messages) {
@@ -85,8 +96,14 @@ function messagesToTurns(messages: AskMessage[], lastStatus: AskTurn['status'], 
           id: pending.id,
           q: textOf(pending),
           a: '',
-          at: typeof pending.metadata?.at === 'string' ? pending.metadata.at : nowISO(),
-          scope: typeof pending.metadata?.scope === 'number' ? pending.metadata.scope : fallbackScope,
+          at:
+            typeof pending.metadata?.at === 'string'
+              ? pending.metadata.at
+              : nowISO(),
+          scope:
+            typeof pending.metadata?.scope === 'number'
+              ? pending.metadata.scope
+              : fallbackScope,
           status: 'done',
         });
       }
@@ -96,8 +113,14 @@ function messagesToTurns(messages: AskMessage[], lastStatus: AskTurn['status'], 
         id: pending.id,
         q: textOf(pending),
         a: textOf(m),
-        at: typeof pending.metadata?.at === 'string' ? pending.metadata.at : nowISO(),
-        scope: typeof pending.metadata?.scope === 'number' ? pending.metadata.scope : fallbackScope,
+        at:
+          typeof pending.metadata?.at === 'string'
+            ? pending.metadata.at
+            : nowISO(),
+        scope:
+          typeof pending.metadata?.scope === 'number'
+            ? pending.metadata.scope
+            : fallbackScope,
         status: m.metadata?.status ?? 'done',
       });
       pending = undefined;
@@ -108,12 +131,21 @@ function messagesToTurns(messages: AskMessage[], lastStatus: AskTurn['status'], 
       id: pending.id,
       q: textOf(pending),
       a: '',
-      at: typeof pending.metadata?.at === 'string' ? pending.metadata.at : nowISO(),
-      scope: typeof pending.metadata?.scope === 'number' ? pending.metadata.scope : fallbackScope,
+      at:
+        typeof pending.metadata?.at === 'string'
+          ? pending.metadata.at
+          : nowISO(),
+      scope:
+        typeof pending.metadata?.scope === 'number'
+          ? pending.metadata.scope
+          : fallbackScope,
       status: lastStatus,
     });
   } else if (turns.length) {
-    turns[turns.length - 1] = { ...turns[turns.length - 1], status: lastStatus };
+    turns[turns.length - 1] = {
+      ...turns[turns.length - 1],
+      status: lastStatus,
+    };
   }
   return turns.slice(-30);
 }
@@ -146,7 +178,11 @@ export default function AskPanel(props: Props) {
     items: props.items,
     selectedIds: props.selectedIds,
   });
-  boardRef.current = { boardName: props.boardName, items: props.items, selectedIds: props.selectedIds };
+  boardRef.current = {
+    boardName: props.boardName,
+    items: props.items,
+    selectedIds: props.selectedIds,
+  };
 
   const transport = useMemo(
     () =>
@@ -157,7 +193,13 @@ export default function AskPanel(props: Props) {
           const b = boardRef.current;
           return {
             boardName: b.boardName,
-            items: b.items.map((i) => ({ id: i.id, text: i.text, x: i.x, y: i.y, by: i.by })),
+            items: b.items.map((i) => ({
+              id: i.id,
+              text: i.text,
+              x: i.x,
+              y: i.y,
+              by: i.by,
+            })),
             selectedIds: b.selectedIds,
           };
         },
@@ -179,7 +221,9 @@ export default function AskPanel(props: Props) {
           } else {
             setNeedPass(true);
             try {
-              setPendingQ(lastUserTextFromBody(JSON.parse(String(init?.body ?? ''))));
+              setPendingQ(
+                lastUserTextFromBody(JSON.parse(String(init?.body ?? ''))),
+              );
             } catch {
               setPendingQ(null);
             }
@@ -193,58 +237,67 @@ export default function AskPanel(props: Props) {
     [],
   );
 
-  const { messages, sendMessage, setMessages, stop, status } = useChat<AskMessage>({
-    transport,
-    messages: turnsToMessages(props.turns),
-    onFinish({ messages: next, isAbort, isError }) {
-      const p = propsRef.current;
-      const fallbackScope = p.selectedIds.length || p.items.length;
-      if (authBlock.current === 'passcode') {
-        const kept = dropLastTurn(next);
-        setMessages(kept);
-        p.onTurns(messagesToTurns(kept, 'done', fallbackScope));
-        authBlock.current = null;
-        return;
-      }
-      let lastStatus: AskTurn['status'] = isAbort ? 'stopped' : isError ? 'error' : 'done';
-      let msgs = next;
-      const last = msgs.at(-1);
-      if (last?.role === 'assistant') {
-        let a = textOf(last);
-        if (!a.trim() && lastStatus === 'done') lastStatus = 'error';
-        if (!a.trim() && lastStatus === 'error') {
-          a =
+  const { messages, sendMessage, setMessages, stop, status } =
+    useChat<AskMessage>({
+      transport,
+      messages: turnsToMessages(props.turns),
+      onFinish({ messages: next, isAbort, isError }) {
+        const p = propsRef.current;
+        const fallbackScope = p.selectedIds.length || p.items.length;
+        if (authBlock.current === 'passcode') {
+          const kept = dropLastTurn(next);
+          setMessages(kept);
+          p.onTurns(messagesToTurns(kept, 'done', fallbackScope));
+          authBlock.current = null;
+          return;
+        }
+        let lastStatus: AskTurn['status'] = isAbort
+          ? 'stopped'
+          : isError
+            ? 'error'
+            : 'done';
+        let msgs = next;
+        const last = msgs.at(-1);
+        if (last?.role === 'assistant') {
+          let a = textOf(last);
+          if (!a.trim() && lastStatus === 'done') lastStatus = 'error';
+          if (!a.trim() && lastStatus === 'error') {
+            a =
+              authBlock.current === 'signin'
+                ? 'Sign in again to keep asking.'
+                : 'No answer came back. Try asking again.';
+          }
+          msgs = msgs.map((m, i) =>
+            i === msgs.length - 1
+              ? {
+                  ...m,
+                  metadata: { ...m.metadata, status: lastStatus },
+                  parts: [{ type: 'text', text: a }],
+                }
+              : m,
+          );
+          setMessages(msgs);
+        } else if (last?.role === 'user' && isError) {
+          const a =
             authBlock.current === 'signin'
               ? 'Sign in again to keep asking.'
-              : 'No answer came back. Try asking again.';
+              : 'Something went wrong asking Claude.';
+          msgs = [
+            ...msgs,
+            {
+              id: `${last.id}-a`,
+              role: 'assistant',
+              metadata: { status: 'error' },
+              parts: [{ type: 'text', text: a }],
+            },
+          ];
+          lastStatus = 'error';
+          setMessages(msgs);
         }
-        msgs = msgs.map((m, i) =>
-          i === msgs.length - 1
-            ? { ...m, metadata: { ...m.metadata, status: lastStatus }, parts: [{ type: 'text', text: a }] }
-            : m,
-        );
-        setMessages(msgs);
-      } else if (last?.role === 'user' && isError) {
-        const a =
-          authBlock.current === 'signin'
-            ? 'Sign in again to keep asking.'
-            : 'Something went wrong asking Claude.';
-        msgs = [
-          ...msgs,
-          {
-            id: `${last.id}-a`,
-            role: 'assistant',
-            metadata: { status: 'error' },
-            parts: [{ type: 'text', text: a }],
-          },
-        ];
-        lastStatus = 'error';
-        setMessages(msgs);
-      }
-      p.onTurns(messagesToTurns(msgs, lastStatus, fallbackScope));
-      authBlock.current = null;
-    },
-  });
+        p.onTurns(messagesToTurns(msgs, lastStatus, fallbackScope));
+        authBlock.current = null;
+      },
+    });
 
   const stopRef = useRef(stop);
   stopRef.current = stop;
@@ -317,7 +370,10 @@ export default function AskPanel(props: Props) {
     const ox = e.clientX - r.left;
     const oy = e.clientY - r.top;
     const move = (ev: PointerEvent) => {
-      const x = Math.min(window.innerWidth - 120, Math.max(8 - r.width + 120, ev.clientX - ox));
+      const x = Math.min(
+        window.innerWidth - 120,
+        Math.max(8 - r.width + 120, ev.clientX - ox),
+      );
       const y = Math.min(window.innerHeight - 60, Math.max(8, ev.clientY - oy));
       setPos({ x, y });
     };
@@ -334,32 +390,29 @@ export default function AskPanel(props: Props) {
 
   return (
     <section
-      className="fixed top-4 right-4 z-30 grid w-[400px] max-h-[min(680px,calc(100vh-110px))] max-w-[calc(100vw-32px)] grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl border border-stone-300 bg-white shadow-xl max-sm:!top-auto max-sm:!right-2 max-sm:!bottom-[calc(72px+env(safe-area-inset-bottom,0px))] max-sm:!left-2 max-sm:w-auto max-sm:max-h-[62vh] max-sm:max-w-none"
+      className="fixed bottom-[calc(56px+env(safe-area-inset-top,0px))] right-3 z-30 grid w-100 max-h-[min(680px,calc(100vh-110px))] max-w-[calc(100vw-32px)] grid-rows-[auto_minmax(0,1fr)_auto] rounded-xl border border-stone-100 bg-white shadow-sm max-sm:!top-auto max-sm:!right-2 max-sm:!bottom-[calc(72px+env(safe-area-inset-bottom,0px))] max-sm:!left-2 max-sm:w-auto max-sm:max-h-[62vh] max-sm:max-w-none"
       aria-label="Ask"
-      style={pos ? { left: pos.x, top: pos.y, right: 'auto' } : undefined}
-    >
+      style={pos ? { left: pos.x, top: pos.y, right: 'auto' } : undefined}>
       <div
-        className="flex cursor-grab items-center justify-between gap-2 border-b border-stone-300 pt-[11px] pr-3 pb-2.5 pl-3.5 touch-none max-sm:cursor-default"
-        onPointerDown={onHeaderDown}
-      >
-        <div className="grid min-w-0 gap-1">
-          <span className="font-mono text-[11px] font-medium tracking-widest text-sky-700 uppercase">Ask</span>
-          <span className="text-[13px] text-zinc-500">{scopeLabel}</span>
-        </div>
+        className="flex cursor-grab items-center justify-between gap-2 border-b border-stone-100 pt-[11px] pr-3 pb-2.5 pl-3.5 touch-none max-sm:cursor-default"
+        onPointerDown={onHeaderDown}>
         <div className="flex items-center gap-1.5">
           {messages.length > 0 && !busy && (
             <button
               type="button"
-              className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40"
+              className="cursor-pointer whitespace-nowrap rounded-md border border-stone-100 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40"
               onClick={() => {
                 setMessages([]);
                 props.onTurns([]);
-              }}
-            >
+              }}>
               Clear
             </button>
           )}
-          <button type="button" className="cursor-pointer border-0 bg-transparent px-1 text-xl leading-none text-zinc-400 hover:text-zinc-900" aria-label="Close" onClick={props.onClose}>
+          <button
+            type="button"
+            className="cursor-pointer border-0 bg-transparent px-1 text-xl leading-none text-zinc-400 hover:text-zinc-900"
+            aria-label="Close"
+            onClick={props.onClose}>
             {'×'}
           </button>
         </div>
@@ -368,46 +421,61 @@ export default function AskPanel(props: Props) {
       <MessageScrollerProvider autoScroll>
         <MessageScroller className="min-h-20">
           <MessageScrollerViewport>
-            <MessageScrollerContent className="gap-[18px] px-3.5 py-3">
-              {messages.length === 0 && (
-                <MessageScrollerItem>
-                  <p className="m-0 font-serif text-[15px] leading-snug font-normal text-zinc-500 italic">
-                    Ask about what&rsquo;s on this board. Select boxes first to narrow it. The assistant finds, reflects and asks
-                    questions back; it won&rsquo;t pitch ideas unless you ask for them.
-                  </p>
-                </MessageScrollerItem>
-              )}
+            <MessageScrollerContent className="gap-4 px-3.5 py-3">
               {messages.map((m, i) => {
                 const isLast = i === messages.length - 1 && !waiting;
                 const a = textOf(m);
                 const streaming = busy && isLast && m.role === 'assistant';
-                const isErr = !streaming && (m.metadata?.status === 'error' || (status === 'error' && isLast && m.role === 'assistant'));
-                const done = !streaming && !busy && m.role === 'assistant' && m.metadata?.status !== 'error' && m.metadata?.status !== 'stopped' && !!a;
+                const isErr =
+                  !streaming &&
+                  (m.metadata?.status === 'error' ||
+                    (status === 'error' && isLast && m.role === 'assistant'));
+                const done =
+                  !streaming &&
+                  !busy &&
+                  m.role === 'assistant' &&
+                  m.metadata?.status !== 'error' &&
+                  m.metadata?.status !== 'stopped' &&
+                  !!a;
                 return (
-                  <MessageScrollerItem key={m.id} messageId={m.id} scrollAnchor={isLast}>
+                  <MessageScrollerItem
+                    key={m.id}
+                    messageId={m.id}
+                    scrollAnchor={isLast}>
                     {m.role === 'user' ? (
-                      <div className="text-[13.5px] font-semibold wrap-anywhere whitespace-pre-wrap">{a}</div>
+                      <div className="text-[13.5px] font-semibold wrap-anywhere whitespace-pre-wrap">
+                        {a}
+                      </div>
                     ) : streaming && !a ? (
-                      <div className="border-l-[1.5px] border-sky-300 pl-[11px] font-serif text-[15.5px] leading-relaxed text-zinc-400 italic">
+                      <div className="border-l-[1.5px] border-sky-300 pl-[11px]  text-[15.5px] leading-relaxed text-zinc-400 italic">
                         Reading the board&hellip;
                       </div>
                     ) : (
                       <div className="grid gap-1.5">
                         <div
                           className={
-                            'border-l-[1.5px] pl-[11px] font-serif text-[15.5px] leading-relaxed wrap-anywhere whitespace-pre-wrap' +
-                            (isErr ? ' border-red-700 text-red-700' : ' border-sky-300')
-                          }
-                        >
+                            'border-l-[1.5px] pl-[11px]  text-[15.5px] leading-relaxed wrap-anywhere whitespace-pre-wrap' +
+                            (isErr
+                              ? ' border-red-700 text-red-700'
+                              : ' border-sky-300')
+                          }>
                           {a}
-                          {m.metadata?.status === 'stopped' && !streaming && <span className="text-zinc-400"> (stopped)</span>}
+                          {m.metadata?.status === 'stopped' && !streaming && (
+                            <span className="text-zinc-400"> (stopped)</span>
+                          )}
                         </div>
                         {done && (
                           <div className="flex gap-1.5 pl-3">
-                            <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => props.onPut(a)}>
+                            <button
+                              type="button"
+                              className="cursor-pointer whitespace-nowrap rounded-md border border-stone-100 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40"
+                              onClick={() => props.onPut(a)}>
                               Put on canvas
                             </button>
-                            <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => void copy(a, m.id)}>
+                            <button
+                              type="button"
+                              className="cursor-pointer whitespace-nowrap rounded-md border border-stone-100 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40"
+                              onClick={() => void copy(a, m.id)}>
                               {copied === m.id ? 'Copied' : 'Copy'}
                             </button>
                           </div>
@@ -419,7 +487,7 @@ export default function AskPanel(props: Props) {
               })}
               {waiting && (
                 <MessageScrollerItem scrollAnchor>
-                  <div className="border-l-[1.5px] border-sky-300 pl-[11px] font-serif text-[15.5px] leading-relaxed text-zinc-400 italic">
+                  <div className="border-l-[1.5px] border-sky-300 pl-[11px]  text-[15.5px] leading-relaxed text-zinc-400 italic">
                     Reading the board&hellip;
                   </div>
                 </MessageScrollerItem>
@@ -431,18 +499,27 @@ export default function AskPanel(props: Props) {
       </MessageScrollerProvider>
 
       {needSignIn ? (
-        <div className="grid gap-2 border-t border-stone-300 px-3 pt-2.5 pb-3">
+        <div className="grid gap-2 border-t border-stone-100 px-3 pt-2.5 pb-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[13px] text-zinc-500">Your session ended.</span>
-            <a className="inline-block cursor-pointer whitespace-nowrap rounded-md border border-zinc-900 bg-zinc-900 px-2.5 py-1 text-[13px] font-semibold text-stone-100 no-underline disabled:cursor-default disabled:opacity-40" href="/auth/sign-in">
+            <span className="text-[13px] text-zinc-500">
+              Your session ended.
+            </span>
+            <a
+              className="inline-block cursor-pointer whitespace-nowrap rounded-md border border-zinc-900 bg-zinc-900 px-2.5 py-1 text-[13px] font-semibold text-stone-100 no-underline disabled:cursor-default disabled:opacity-40"
+              href="/auth/sign-in">
               Sign in
             </a>
           </div>
         </div>
       ) : needPass ? (
-        <form className="grid gap-2 border-t border-stone-300 px-3 pt-2.5 pb-3" onSubmit={savePass}>
-          <label className="text-[13px] text-zinc-500" htmlFor="ask-pass">
-            This deployment needs its passcode. It&rsquo;s saved in this browser.
+        <form
+          className="grid gap-2 border-t border-stone-100 px-3 pt-2.5 pb-3"
+          onSubmit={savePass}>
+          <label
+            className="text-[13px] text-zinc-500"
+            htmlFor="ask-pass">
+            This deployment needs its passcode. It&rsquo;s saved in this
+            browser.
           </label>
           <div className="flex items-center justify-between gap-2">
             <input
@@ -453,15 +530,20 @@ export default function AskPanel(props: Props) {
               onChange={(e) => setPass(e.target.value)}
               placeholder="Passcode"
               autoFocus
-              className="w-full min-w-0 rounded-lg border border-stone-300 bg-stone-100 px-2.5 py-1.5 focus:outline-2 focus:-outline-offset-1 focus:outline-sky-700"
+              className="w-full min-w-0 rounded-lg border border-stone-100 bg-stone-100 px-2.5 py-1.5 focus:outline-2 focus:-outline-offset-1 focus:outline-sky-700"
             />
-            <button type="submit" className="inline-block cursor-pointer whitespace-nowrap rounded-md border border-zinc-900 bg-zinc-900 px-2.5 py-1 text-[13px] font-semibold text-stone-100 no-underline disabled:cursor-default disabled:opacity-40" disabled={!pass.trim()}>
+            <button
+              type="submit"
+              className="inline-block cursor-pointer whitespace-nowrap rounded-md border border-zinc-900 bg-zinc-900 px-2.5 py-1 text-[13px] font-semibold text-stone-100 no-underline disabled:cursor-default disabled:opacity-40"
+              disabled={!pass.trim()}>
               Save
             </button>
           </div>
         </form>
       ) : (
-        <form className="grid gap-2 border-t border-stone-300 px-3 pt-2.5 pb-3" onSubmit={onSubmit}>
+        <form
+          className="grid gap-2 border-t border-stone-100 px-3 pt-2.5 pb-3"
+          onSubmit={onSubmit}>
           <textarea
             id="ask-input"
             ref={inputRef}
@@ -470,16 +552,24 @@ export default function AskPanel(props: Props) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onInputKey}
             placeholder="Find, check, or talk something through"
-            className="w-full min-w-0 resize-none rounded-lg border border-stone-300 bg-stone-100 px-2.5 py-1.5 text-sm leading-snug focus:outline-2 focus:-outline-offset-1 focus:outline-sky-700"
+            className="w-full min-w-0 resize-none rounded-lg border border-stone-100 bg-stone-100 px-2.5 py-1.5 text-sm leading-snug focus:outline-2 focus:-outline-offset-1 focus:outline-sky-700"
           />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11.5px] text-zinc-400">Enter to ask &middot; Shift+Enter for a new line</span>
+            <span className="text-[11.5px] text-zinc-400">
+              Enter to ask &middot; Shift+Enter for a new line
+            </span>
             {busy ? (
-              <button type="button" className="cursor-pointer whitespace-nowrap rounded-md border border-stone-300 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40" onClick={() => stop()}>
+              <button
+                type="button"
+                className="cursor-pointer whitespace-nowrap rounded-md border border-stone-100 bg-transparent px-2.5 py-1 text-[13px] hover:border-zinc-400 disabled:cursor-default disabled:opacity-40"
+                onClick={() => stop()}>
                 Stop
               </button>
             ) : (
-              <button type="submit" className="inline-block cursor-pointer whitespace-nowrap rounded-md border border-zinc-900 bg-zinc-900 px-2.5 py-1 text-[13px] font-semibold text-stone-100 no-underline disabled:cursor-default disabled:opacity-40" disabled={!input.trim()}>
+              <button
+                type="submit"
+                className="inline-block cursor-pointer whitespace-nowrap rounded-md border border-zinc-900 bg-zinc-900 px-2.5 py-1 text-[13px] font-semibold text-stone-100 no-underline disabled:cursor-default disabled:opacity-40"
+                disabled={!input.trim()}>
                 Ask
               </button>
             )}

@@ -4,7 +4,7 @@ Next.js 16 (App Router, `proxy.ts`) + React 19 + TypeScript. Auth is Neon Auth (
 
 ## Product rules to keep intact
 
-- One primitive: a free text box. Don't add item types (idea, question, task). The assistant interprets text itself.
+- Items may be text, a sticky, a shape, or a connector. The assistant still reads the text. Don't add semantic item types (idea, question, task).
 - The assistant is an assistant and rubber duck, not a co-designer. It finds, reflects and asks questions, and only offers ideas when the user explicitly asks. That stance lives in `SYSTEM_PROMPT` in `lib/assistant.ts`.
 - UI floats and is ephemeral (toolbar pill, popovers, a draggable Ask panel). Avoid panels docked to screen edges.
 - Assistant-written boxes (`by: 'claude'`) render in the non-photo-blue tokens so they never read as the user's own words.
