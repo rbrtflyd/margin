@@ -17,7 +17,7 @@ Each workstream below is sized for one agent. Claim one in the status table, wor
 | 1B | Multi-selection: bar, resize, modifiers, hover | 0B, 0C | done |
 | 1C | Stacking order, lock, group | 0B, 0D | done |
 | 1D | Align, distribute, smart guides, grid | 0C | done |
-| 2A | Shapes rendered as SVG, more shapes | 0D | open |
+| 2A | Shapes rendered as SVG, more shapes | 0D | done |
 | 2B | Style controls: fill, stroke, text color | 0D, 1B, 2A | open |
 | 2C | Text formatting and sticky sizing | 0D | open |
 | 3A | Connection dots and quick-create | 0B, 0C | open |
@@ -164,10 +164,10 @@ Coordinate with 1B, since both add controls to `SelectionBar.tsx`.
 
 Diamonds and triangles are cut out with a CSS `clipPath` today, and a clip path can't draw an outline. Strokes need real SVG.
 
-- [ ] Render each shape as an SVG path sized to the item, and drop `shapeClip`.
-- [ ] Add flowchart shapes: parallelogram, cylinder, document, hexagon, star, chevron, speech bubble.
-- [ ] Update the shape dropdown in `CanvasToolbar.tsx` to fit the new shapes; consider a compact grid.
-- [ ] Keep connector anchors on shape edges correct for the new shapes. Side midpoints are fine for now.
+- [x] Render each shape as an SVG path sized to the item, and drop `shapeClip`.
+- [x] Add flowchart shapes: parallelogram, cylinder, document, hexagon, star, chevron, speech bubble.
+- [x] Update the shape dropdown in `CanvasToolbar.tsx` to fit the new shapes; consider a compact grid.
+- [x] Keep connector anchors on shape edges correct for the new shapes. Side midpoints are fine for now.
 
 ### 2B. Style controls: fill, stroke, text color
 

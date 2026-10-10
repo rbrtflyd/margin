@@ -16,7 +16,19 @@ export type ItemKind =
   | 'link'
   | 'embed'
   | 'section';
-export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'triangle' | 'roundRect';
+export type ShapeKind =
+  | 'rect'
+  | 'ellipse'
+  | 'diamond'
+  | 'triangle'
+  | 'roundRect'
+  | 'parallelogram'
+  | 'cylinder'
+  | 'document'
+  | 'hexagon'
+  | 'star'
+  | 'chevron'
+  | 'speech';
 export type Fill = 'amber' | 'rose' | 'sky' | 'lime' | 'stone' | 'white';
 export type Stroke = Fill | 'ink' | 'none';
 export type StrokeWidth = 1 | 2 | 4;

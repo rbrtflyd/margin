@@ -2,18 +2,14 @@
 
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  CircleIcon,
   Cursor01Icon,
-  DiamondIcon,
   LineIcon,
-  SquareIcon,
-  SquareRoundCornerIcon,
   StickyNote01Icon,
   TextIcon,
-  TriangleIcon,
 } from '@hugeicons/core-free-icons';
 import type { Route, ShapeKind, Tool } from '@/lib/types';
 import { SHAPES } from '@/lib/items';
+import { shapePaths } from '@/lib/shapes';
 import { Island } from './Island';
 import {
   DropdownMenu,
@@ -27,13 +23,30 @@ const btn =
   'inline-flex cursor-pointer items-center gap-1 rounded-lg border-0 bg-transparent px-2 py-1.5 text-[13.5px] whitespace-nowrap hover:bg-zinc-900/10 aria-pressed:bg-zinc-900 aria-pressed:text-stone-100 aria-pressed:[&_kbd]:text-current aria-pressed:[&_kbd]:opacity-70 max-sm:px-1.5';
 const kbd = 'font-mono text-[10.5px] font-medium text-zinc-400 max-sm:hidden';
 
-const shapeIcon: Record<ShapeKind, typeof SquareIcon> = {
-  rect: SquareIcon,
-  ellipse: CircleIcon,
-  diamond: DiamondIcon,
-  triangle: TriangleIcon,
-  roundRect: SquareRoundCornerIcon,
-};
+function ShapeThumb({ kind }: { kind: ShapeKind }) {
+  const w = 22;
+  const h = 16;
+  const paths = shapePaths(kind, w, h);
+  return (
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      aria-hidden
+      className="size-[22px] overflow-visible">
+      {paths.map((p, i) => (
+        <path
+          key={i}
+          d={p.d}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.4}
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
+  );
+}
 
 interface Props {
   zoom: number;
@@ -104,29 +117,20 @@ export default function CanvasToolbar(props: Props) {
           className={btn}
           aria-pressed={props.tool.type === 'shape'}
           title="Shape (R, O)">
-          <HugeiconsIcon
-            icon={shapeIcon[shape]}
-            size={16}
-            strokeWidth={2}
-          />
+          <ShapeThumb kind={shape} />
           <span className="max-sm:hidden">Shape</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           side="top"
-          className="min-w-40">
+          className="grid w-[196px] min-w-0 grid-cols-4 gap-0.5 p-1.5">
           {SHAPES.map((s) => (
             <DropdownMenuItem
               key={s.id}
+              title={s.label}
+              aria-label={s.label}
+              className="flex size-10 items-center justify-center p-0"
               onClick={() => props.onTool({ type: 'shape', shape: s.id })}>
-              <HugeiconsIcon
-                icon={shapeIcon[s.id]}
-                size={16}
-                strokeWidth={2}
-              />
-              {s.label}
-              {s.shortcut && (
-                <DropdownMenuShortcut>{s.shortcut}</DropdownMenuShortcut>
-              )}
+              <ShapeThumb kind={s.id} />
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

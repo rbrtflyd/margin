@@ -5,9 +5,10 @@ import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { Handle, Item } from '@/lib/types';
+import type { Handle, Item, ShapeKind } from '@/lib/types';
 import { itemKind, paintOf, SHAPE_SIZE, STICKY_SIZE } from '@/lib/items';
 import { Markdown } from '@/lib/markdown';
+import { shapePad, shapePaths } from '@/lib/shapes';
 
 export const HANDLE_POS: Record<
   Handle,
@@ -44,10 +45,43 @@ function handlesFor(it: Item): Handle[] {
   return [];
 }
 
-function shapeClip(shape: Item['shape']): string | undefined {
-  if (shape === 'diamond') return 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
-  if (shape === 'triangle') return 'polygon(50% 0%, 100% 100%, 0% 100%)';
-  return undefined;
+export function ShapeSvg({
+  kind,
+  w,
+  h,
+  fill,
+  stroke,
+  strokeWidth = 1.5,
+  className = '',
+}: {
+  kind: ShapeKind | undefined;
+  w: number;
+  h: number;
+  fill: string;
+  stroke: string;
+  strokeWidth?: number;
+  className?: string;
+}) {
+  const paths = shapePaths(kind, w, h);
+  return (
+    <svg
+      className={'overflow-visible ' + className}
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      aria-hidden>
+      {paths.map((p, i) => (
+        <path
+          key={i}
+          d={p.d}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
+  );
 }
 
 function caretOffset(el: HTMLElement): number {
@@ -229,15 +263,9 @@ export default function BoardItem(props: Props) {
     kind === 'shape' ? (it.h ?? SHAPE_SIZE) : undefined;
   const minH =
     kind === 'sticky' ? (it.h ?? STICKY_SIZE) : undefined;
-  const clip = kind === 'shape' ? shapeClip(it.shape) : undefined;
-  const round =
-    kind === 'shape' && it.shape === 'ellipse'
-      ? 'rounded-full'
-      : kind === 'shape' && it.shape === 'roundRect'
-        ? 'rounded-3xl'
-        : kind === 'sticky'
-          ? 'rounded-sm'
-          : 'rounded-md';
+  const round = kind === 'sticky' ? 'rounded-sm' : 'rounded-md';
+  const shapeW = kind === 'shape' ? (w ?? SHAPE_SIZE) : 0;
+  const shapeH = kind === 'shape' ? (h ?? SHAPE_SIZE) : 0;
 
   const body =
     props.editing ? (
@@ -271,9 +299,7 @@ export default function BoardItem(props: Props) {
         (kind === 'sticky'
           ? ' px-3 py-2.5 shadow-[0_1px_0_rgba(28,25,23,0.06),0_1px_2px_rgba(28,25,23,0.05)]'
           : '') +
-        (kind === 'shape'
-          ? ' flex items-center justify-center px-4 py-3 text-center'
-          : '') +
+        (kind === 'shape' ? ' flex items-center justify-center text-center' : '') +
         (fill.claude && kind === 'text' ? ' text-base text-sky-800' : '') +
         (props.selected ? ' z-1' : '') +
         (off ? ' opacity-85' : '') +
@@ -295,23 +321,16 @@ export default function BoardItem(props: Props) {
               ? fill.bg
               : '#fff'
             : undefined,
-        paddingTop: it.shape === 'triangle' ? '28%' : undefined,
+        padding: kind === 'shape' ? shapePad(it.shape) : undefined,
       }}>
       {kind === 'shape' && (
-        <div
-          className={'absolute inset-0 ' + round}
-          style={{
-            background: fill.bg,
-            clipPath: clip,
-            border:
-              '1.5px solid color-mix(in oklab, ' + fill.ink + ' 28%, transparent)',
-            borderRadius:
-              it.shape === 'ellipse'
-                ? 9999
-                : it.shape === 'roundRect'
-                  ? 24
-                  : 6,
-          }}
+        <ShapeSvg
+          kind={it.shape}
+          w={shapeW}
+          h={shapeH}
+          fill={fill.bg}
+          stroke={'color-mix(in oklab, ' + fill.ink + ' 28%, transparent)'}
+          className="pointer-events-none absolute inset-0"
         />
       )}
       <div className={'relative z-[1] min-w-0 ' + (kind === 'shape' ? 'w-full' : '')}>

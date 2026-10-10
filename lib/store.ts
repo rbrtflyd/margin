@@ -46,6 +46,13 @@ const SHAPES: ShapeKind[] = [
   'diamond',
   'triangle',
   'roundRect',
+  'parallelogram',
+  'cylinder',
+  'document',
+  'hexagon',
+  'star',
+  'chevron',
+  'speech',
 ];
 const FILLS: Fill[] = ['amber', 'rose', 'sky', 'lime', 'stone', 'white'];
 const FILL_OR_NONE = [...FILLS, 'none'] as const;

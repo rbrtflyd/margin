@@ -49,6 +49,13 @@ export const SHAPES: { id: ShapeKind; label: string; shortcut?: string }[] = [
   { id: 'diamond', label: 'Diamond' },
   { id: 'triangle', label: 'Triangle' },
   { id: 'roundRect', label: 'Rounded' },
+  { id: 'parallelogram', label: 'Parallelogram' },
+  { id: 'cylinder', label: 'Cylinder' },
+  { id: 'document', label: 'Document' },
+  { id: 'hexagon', label: 'Hexagon' },
+  { id: 'star', label: 'Star' },
+  { id: 'chevron', label: 'Chevron' },
+  { id: 'speech', label: 'Speech' },
 ];
 
 export type Rect = { x: number; y: number; w: number; h: number };
